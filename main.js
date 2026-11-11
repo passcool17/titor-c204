@@ -4,9 +4,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { PARTS, TOUR, STEPS, DOSSIER, BOM, BOM_META, BOM_NOTES } from './data.js?v=0.7';
-import { CAR_PARTS, CAR_STEPS } from './data-car.js?v=0.7';
-import { createCorvette } from './corvette.js?v=0.7';
+import { PARTS, TOUR, STEPS, DOSSIER, BOM, BOM_META, BOM_NOTES } from './data.js?v=0.7.1';
+import { CAR_PARTS, CAR_STEPS } from './data-car.js?v=0.7.1';
+import { createCorvette } from './corvette.js?v=0.7.1';
 
 const $ = s => document.querySelector(s);
 const canvas = $('#c');
@@ -516,21 +516,60 @@ function setLabels(on) {
   ensureLabels();
   syncLabels();
 }
-let labelEls = [];
+let labelEls = [], labelOverlap = 0, labelOverlapRaw = 0;
 const _labV = new THREE.Vector3(), _labBB = new THREE.Box3();
+const LAB_HIT = 44;
 function ensureLabels() {
   const box = $('#labels');
   if (labelEls.length) return;
-  BOM.forEach(p => p.nodes.forEach(name => {
-    const b = document.createElement('b');
-    b.textContent = String(p.n);
-    b.dataset.bom = String(p.n);
-    b.dataset.node = name;
-    b.className = 'off';
-    b.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); revealBom(p.n, { keepScene: true }); };
-    box.appendChild(b);
-    labelEls.push({ el: b, n: p.n, name, obj: null });
-  }));
+  let svg = box.querySelector('svg');
+  if (!svg) {
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    box.prepend(svg);
+  }
+  BOM.filter(p => p.nodes.length).forEach(p => {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'lab off'; el.dataset.bom = String(p.n);
+    el.setAttribute('aria-label', 'Pièce n°' + p.n);
+    const d = document.createElement('span'); d.textContent = String(p.n); el.appendChild(d);
+    el.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); revealBom(p.n, { keepScene: true }); };
+    box.appendChild(el);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.classList.add('off'); svg.appendChild(line);
+    labelEls.push({ el, n: p.n, names: p.nodes.slice(), objs: [], line, x: 0, y: 0, ox: 0, oy: 0, z: 0 });
+  });
+}
+function hideLab(L) { L.el.classList.add('off'); L.line?.classList.add('off'); }
+function countLabOverlap(list, hit) {
+  let n = 0;
+  for (let i = 0; i < list.length; i++)
+    for (let j = i + 1; j < list.length; j++)
+      if (Math.abs(list[i].x - list[j].x) < hit && Math.abs(list[i].y - list[j].y) < hit) n++;
+  return n;
+}
+function declutterLabels(list, w, h, hit) {
+  list.sort((a, b) => (b.n === selectedBom) - (a.n === selectedBom) || a.z - b.z || a.n - b.n);
+  const margin = hit / 2;
+  const topSafe = (($('#top') && $('#top').getBoundingClientRect().bottom) || 60) + 4;
+  const bar = document.querySelector('#bar:not(.hidden), #barCar:not(.hidden)');
+  const botSafe = ((bar && bar.getBoundingClientRect().top) || h - 70) - 4;
+  const placed = [];
+  const overlaps = (x, y) => placed.some(P => Math.abs(P.x - x) < hit && Math.abs(P.y - y) < hit);
+  const safe = (x, y) => x >= margin && x <= w - margin && y >= Math.max(margin, topSafe) && y <= Math.min(h - margin, botSafe);
+  const dirs = [];
+  for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8 + 0.18; dirs.push([Math.cos(a), Math.sin(a)]); }
+  const dists = [0, hit, hit * 1.25, hit * 1.6, hit * 2, hit * 2.5, hit * 3, hit * 3.6, hit * 4.2];
+  for (const L of list) {
+    let found = false;
+    for (const d of dists) {
+      const cands = d === 0 ? [[L.ox, L.oy]] : dirs.map(([dx, dy]) => [L.ox + dx * d, L.oy + dy * d]);
+      for (const [x, y] of cands) {
+        if (safe(x, y) && !overlaps(x, y)) { L.x = x; L.y = y; placed.push(L); found = true; break; }
+      }
+      if (found) break;
+    }
+    if (!found) hideLab(L);
+  }
 }
 function syncLabels() {
   const box = $('#labels');
@@ -539,23 +578,46 @@ function syncLabels() {
   box.setAttribute('aria-hidden', show ? 'false' : 'true');
   if (!show) return;
   ensureLabels();
-  labelEls.forEach(L => { L.obj = (glbRoot || machine).getObjectByName(L.name) || L.obj; });
+  const root = glbRoot || machine;
+  labelEls.forEach(L => { L.objs = L.names.map(n => root.getObjectByName(n)).filter(Boolean); });
   updateLabels();
 }
 function updateLabels() {
   if ($('#labels').hidden) return;
-  const w = innerWidth, h = innerHeight;
+  const w = innerWidth, h = innerHeight, hit = LAB_HIT;
+  const placed = [];
   for (const L of labelEls) {
     const want = labelsOn || L.n === selectedBom;
-    const o = L.obj;
-    if (!want || !o) { L.el.classList.add('off'); continue; }
-    const v = _labV;
-    _labBB.setFromObject(o).getCenter(v);
-    v.project(camera);
-    if (v.z < -1 || v.z > 1 || v.x < -1.15 || v.x > 1.15 || v.y < -1.15 || v.y > 1.15) { L.el.classList.add('off'); continue; }
+    if (!want || !L.objs.length) { hideLab(L); continue; }
+    let x = 0, y = 0, z = 0, k = 0;
+    for (const o of L.objs) {
+      _labBB.setFromObject(o).getCenter(_labV);
+      _labV.project(camera);
+      if (_labV.z < -1 || _labV.z > 1) continue;
+      x += (_labV.x + 1) / 2 * w;
+      y += (1 - _labV.y) / 2 * h;
+      z += _labV.z; k++;
+    }
+    if (!k) { hideLab(L); continue; }
+    L.ox = x / k; L.oy = y / k; L.z = z / k; L.x = L.ox; L.y = L.oy;
+    if (L.ox < -20 || L.ox > w + 20 || L.oy < -20 || L.oy > h + 20) { hideLab(L); continue; }
     L.el.classList.remove('off');
     L.el.classList.toggle('sel', L.n === selectedBom);
-    L.el.style.transform = `translate(${((v.x + 1) / 2 * w).toFixed(1)}px, ${((1 - v.y) / 2 * h).toFixed(1)}px) translate(-50%,-50%)`;
+    placed.push(L);
+  }
+  labelOverlapRaw = countLabOverlap(placed, hit);
+  if (placed.length > 1) declutterLabels(placed, w, h, hit);
+  const vis = placed.filter(L => !L.el.classList.contains('off'));
+  labelOverlap = countLabOverlap(vis, hit);
+  for (const L of labelEls) {
+    if (L.el.classList.contains('off')) { L.line.classList.add('off'); continue; }
+    L.el.style.transform = `translate(${L.x.toFixed(1)}px, ${L.y.toFixed(1)}px) translate(-50%,-50%)`;
+    const d2 = (L.x - L.ox) ** 2 + (L.y - L.oy) ** 2;
+    if (d2 > 64) {
+      L.line.classList.remove('off');
+      L.line.setAttribute('x1', L.ox.toFixed(1)); L.line.setAttribute('y1', L.oy.toFixed(1));
+      L.line.setAttribute('x2', L.x.toFixed(1)); L.line.setAttribute('y2', L.y.toFixed(1));
+    } else L.line.classList.add('off');
   }
 }
 
@@ -756,6 +818,6 @@ if (demo === 'tour') $('#bTour').click();
 if (demo === 'dossier') $('#bDossier').click();
 if (demo === 'pieces') openParts();
 if (demo === 'labels') setLabels(true);
-window.__c204 = { version: '0.7', overview: () => overview(), carView: () => car && car.bbox && (() => { const bb = car.bbox, xs = [], ys = []; for (let i = 0; i < 8; i++) { const v = new THREE.Vector3(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z).project(camera); xs.push((v.x + 1) / 2 * innerWidth); ys.push((1 - v.y) / 2 * innerHeight); } return { x0: Math.round(Math.min(...xs)), x1: Math.round(Math.max(...xs)), y0: Math.round(Math.min(...ys)), y1: Math.round(Math.max(...ys)), dist: +camera.position.distanceTo(controls.target).toFixed(2) }; })(), pickAt(x, y) { ptr.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); ray.setFromCamera(ptr, camera); return carPick(); }, hotspotAt(card) { const h = car?.hotspots.find(h => h.userData.card === card); if (!h || !h.visible) return null; const v = h.getWorldPosition(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, camera, controls, screenOf(n) { const o = (sceneId === 'corvette' ? car.scene : scene).getObjectByName(n); if (!o) return null; const v = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, get scene() { return sceneId; }, get car() { return car && car.stats(); }, get render() { const i = renderer.info; return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, heapMB: performance.memory ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : null }; }, get machineVisible() { return machine.visible; }, get explode() { const a = actions.explode; return { target: explodeTarget, lerp: +explode.toFixed(3), time: a ? +a.time.toFixed(3) : null, active: a ? a.isScheduled() : false, paused: a ? a.paused : null }; }, groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; }, openParts, closeParts, setLabels, revealBom, get partsOpen() { return !$('#parts').classList.contains('hidden'); }, get labelsOn() { return labelsOn; }, get selectedBom() { return selectedBom; }, get bom() { return { items: BOM.map(p => ({ n: p.n, fr: p.fr, en: p.en, qty: p.qty, notes: p.notes, nodes: p.nodes.slice(), mapped: p.nodes.length > 0 })), unmapped: BOM.filter(p => !p.nodes.length).map(p => p.n), found: Object.fromEntries(BOM.map(p => [p.n, bomObjects(p.n).map(o => o.name)])) }; }, labels() { return labelEls.map(L => ({ n: L.n, node: L.name, hidden: L.el.classList.contains('off') || $('#labels').hidden, sel: L.el.classList.contains('sel'), text: L.el.textContent, x: L.el.style.transform })); } };
+window.__c204 = { version: '0.7.1', overview: () => overview(), carView: () => car && car.bbox && (() => { const bb = car.bbox, xs = [], ys = []; for (let i = 0; i < 8; i++) { const v = new THREE.Vector3(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z).project(camera); xs.push((v.x + 1) / 2 * innerWidth); ys.push((1 - v.y) / 2 * innerHeight); } return { x0: Math.round(Math.min(...xs)), x1: Math.round(Math.max(...xs)), y0: Math.round(Math.min(...ys)), y1: Math.round(Math.max(...ys)), dist: +camera.position.distanceTo(controls.target).toFixed(2) }; })(), pickAt(x, y) { ptr.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); ray.setFromCamera(ptr, camera); return carPick(); }, hotspotAt(card) { const h = car?.hotspots.find(h => h.userData.card === card); if (!h || !h.visible) return null; const v = h.getWorldPosition(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, camera, controls, screenOf(n) { const o = (sceneId === 'corvette' ? car.scene : scene).getObjectByName(n); if (!o) return null; const v = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, get scene() { return sceneId; }, get car() { return car && car.stats(); }, get render() { const i = renderer.info; return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, heapMB: performance.memory ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : null }; }, get machineVisible() { return machine.visible; }, get explode() { const a = actions.explode; return { target: explodeTarget, lerp: +explode.toFixed(3), time: a ? +a.time.toFixed(3) : null, active: a ? a.isScheduled() : false, paused: a ? a.paused : null }; }, groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; }, openParts, closeParts, setLabels, revealBom, get partsOpen() { return !$('#parts').classList.contains('hidden'); }, get labelsOn() { return labelsOn; }, get selectedBom() { return selectedBom; }, get bom() { return { items: BOM.map(p => ({ n: p.n, fr: p.fr, en: p.en, qty: p.qty, notes: p.notes, nodes: p.nodes.slice(), mapped: p.nodes.length > 0 })), unmapped: BOM.filter(p => !p.nodes.length).map(p => p.n), found: Object.fromEntries(BOM.map(p => [p.n, bomObjects(p.n).map(o => o.name)])) }; }, labels() { return labelEls.map(L => ({ n: L.n, nodes: L.names, hidden: L.el.classList.contains('off') || $('#labels').hidden, sel: L.el.classList.contains('sel'), text: L.el.textContent.trim(), x: L.el.style.transform, hit: [L.el.offsetWidth, L.el.offsetHeight] })); }, labelStats() { const vis = labelEls.filter(L => !L.el.classList.contains('off') && !$('#labels').hidden); const hits = vis.map(L => { const r = L.el.getBoundingClientRect(); return { n: L.n, w: Math.round(r.width), h: Math.round(r.height) }; }); return { hit: LAB_HIT, created: labelEls.length, vis: vis.length, nums: vis.map(L => L.n).sort((a, b) => a - b), overlap: labelOverlap, overlapRaw: labelOverlapRaw, qaBefore: innerWidth <= 500 ? 84 : (innerHeight <= 500 ? 192 : null), hits }; }, header() { const t = $('#ttlMain'), s = $('#ttlSub'); const br = b => b.getBoundingClientRect(); const overlap = (a, b) => !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom); const btns = [...document.querySelectorAll('#topBtns button')].filter(b => b.offsetParent); const tr = br(t), sr = br(s); return { title: t.textContent, sub: s.textContent, titleScroll: t.scrollWidth, titleClient: t.clientWidth, titleCut: t.scrollWidth > t.clientWidth + 1, subScroll: s.scrollWidth, subClient: s.clientWidth, subCut: s.scrollWidth > s.clientWidth + 1, overlapBtns: btns.some(b => overlap(tr, br(b)) || overlap(sr, br(b))), w: innerWidth, h: innerHeight }; } };
 
 if (location.hash === '#corvette') setScene('corvette');

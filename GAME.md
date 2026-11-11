@@ -1,7 +1,7 @@
 # Machine C204 (John Titor) — page 3D interactive
 - Lien jouable : https://passcool17.github.io/titor-c204/
 - Dépôt : https://github.com/passcool17/titor-c204 (bot Arcade 3D)
-- État : v0.7 — scène Machine (GLB c204.glb) et scène Corvette 1967 (GLB corvette.glb v2), navigation #machine / #corvette, panneau Pièces (bon de commande C204) et mode Étiquettes.
+- État : v0.7.1 — scène Machine (GLB c204.glb) et scène Corvette 1967 (GLB corvette.glb v2), navigation #machine / #corvette, panneau Pièces et mode Étiquettes (en-tête mobile corrigé, pastilles 44 px sans chevauchement).
 - Contrôles : glisser pour tourner, pincer pour zoomer, toucher une pièce = fiche. Boutons : Démarrer (choix de date, séquence 8 étapes, compte à rebours, saut simulé, arrêt d'urgence), Éclatée, Visite (22 pièces), Champ (sinusoïde de Tipler, p.5), Dossier (histoire, manuel, IBM 5100, prédictions, identité, physique, tableau Vérifié/Non vérifié), Pièces (bon de commande des 20 pièces de l'unité, depuis les deux scènes), Étiquettes (numéros sur le modèle, scène Machine).
 - Tests : `?demo=explode|field|tour|dossier|pieces|labels`.
 - GLB attendu : objets nommés selon /workspace/projets/titor-c204/manuel/NOMS-OBJETS.md ; actions idle, startup, spin_singularities, field_pulse, jump, explode.
@@ -135,3 +135,17 @@ Demande : ajouter la liste des pièces de l'unité, d'après `/workspace/games3d
 - **Tests** : `/workspace/games3d/titor-c204-tests/t07.js` (Playwright + Chrome, tactile, 412×915 et 915×412), en local puis en ligne.
 - **Captures** : `/workspace/games3d/titor-c204-v07-pieces.png` (panneau ouvert), `titor-c204-v07-surlignage.png` (surlignage + n°), `titor-c204-v07-etiquettes.png` (mode Étiquettes allumé).
 - **Limites** : pièces 7 et 20 pas encore sur le modèle ; fps réel du S20 non mesuré (la box rend en logiciel) ; Safari non testé.
+
+## v0.7.1 — en-tête mobile + étiquettes (11 nov. 2026)
+Corrige les 2 bugs du rapport QA v0.7 (`/workspace/qa/titor-c204/rapport-2026-11-11-v07.md`, commit 2896506).
+- **En-tête (moyenne)** : en 412 px, le titre et le sous-titre ont leur propre ligne ; les boutons (Pièces, Étiquettes, 🔊, ⛶) passent en dessous, à droite. Plus d'ellipse : on lit « ARMY MODEL GE / C204 » et tout le sous-titre, dans les deux scènes. Pas de chevauchement avec les boutons. En 915×412 et 1280×800, l'en-tête reste sur une seule ligne et n'est pas coupé. L'aide et le panneau de séquence sont descendus en portrait étroit pour ne pas passer sous les boutons. `?v=0.7.1` sur `main.js` et `style.css`.
+- **Étiquettes (basse)** : une pastille par pièce (centroïde de ses nœuds), plus une par nœud. Pastille visible de 28 px, cible tactile de 44×44 px. Si deux cibles se touchent, la pastille de plus faible priorité est décalée (spirale + trait de rappel) ; on ne la cache qu'en dernier recours. Mesure des chevauchements de cibles 44 px (paires AABB) :
+
+| Vue | v0.7 (39 pastilles 32 px, QA) | v0.7.1 avant décalage (18 pastilles) | v0.7.1 après décalage |
+|---|---|---|---|
+| 412×915 | 84 | 30 | **0** (18/18 visibles) |
+| 915×412 | 192 | 62 | **0** (18/18 visibles) |
+
+- **Tests** : `/workspace/games3d/titor-c204-tests/t07.js`, 412×915, 915×412, contrôle d'en-tête aussi en 1280×800 et en scène Corvette. 0 erreur, 0 requête 404, en local et en ligne.
+- **Captures** : `/workspace/games3d/titor-c204-v07-pieces.png`, `titor-c204-v07-etiquettes.png`, `titor-c204-v071-entete.png`.
+- Inchangé : les pièces 7 et 20 restent non mappées ; toucher une pièce interne à travers le boîtier ouvre encore « Boîtier principal ».
