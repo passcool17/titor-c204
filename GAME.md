@@ -18,3 +18,9 @@
 - Vue éclatée calculée depuis le centre du modèle (en attendant l'action `explode`).
 - Test local à 412x915 (Playwright) : aucune erreur, 104 appels de dessin, 5 726 triangles, 4 textures, ~10 Mo de tas JS. Fps non représentatifs sur la box (rendu logiciel) ; à mesurer sur le S20.
 - Prochaine étape : remplacer par `c204.glb` (6 actions) quand Rendu le livre : changer `assets/model.json`.
+
+## v0.3 — GLB final animé (11 nov. 2026)
+- Modèle : `assets/c204.glb` (325 Ko, chaîne 3D Modélisation → Rig → Rendu, original, licence : propriété de Pascal), pointé par `assets/model.json`.
+- 6 clips branchés : idle, startup (couvercle qui s'ouvre, figé à la fin), spin_singularities, field_pulse, jump, explode (bouton Éclatée, aller-retour).
+- Test local 412x915 (Playwright) : 88 pièces mappées, 0 erreur console, ~114 draw calls, ~7 800 triangles. Fps réel du S20 non mesuré (la box rend en logiciel).
+- Prochaines étapes : test QA sur le S20, musique, teaser de Rendu.
