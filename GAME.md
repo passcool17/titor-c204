@@ -1,7 +1,7 @@
 # Machine C204 (John Titor) — page 3D interactive
 - Lien jouable : https://passcool17.github.io/titor-c204/
 - Dépôt : https://github.com/passcool17/titor-c204 (bot Arcade 3D)
-- État : v0.8 — scène Machine (GLB c204.glb) et scène Corvette 1967 (GLB corvette.glb v2), navigation #machine / #corvette, panneau Pièces (données techniques, caractéristiques de l'unité, notes de référence), mode Étiquettes, overlay Distances de sécurité.
+- État : v0.9 — scène Machine (GLB c204.glb **v2**, 103 nœuds), scène Corvette 1967 (GLB corvette.glb v2), les 20 pièces du bon de commande sont visibles sur la Machine, panneau Pièces, Étiquettes 20/20, Distances de sécurité.
 - Contrôles : glisser pour tourner, pincer pour zoomer, toucher une pièce = fiche. Boutons : Démarrer (choix de date, séquence 8 étapes, compte à rebours, saut simulé, arrêt d'urgence), Éclatée, Visite (22 pièces), Champ (sinusoïde de Tipler, p.5), Dossier (histoire, manuel, IBM 5100, prédictions, identité, physique, tableau Vérifié/Non vérifié), Pièces (bon de commande des 20 pièces, données techniques, caractéristiques de l'unité), Étiquettes (numéros sur le modèle, scène Machine), Distances (repères de sécurité autour de la Machine ou de la Corvette).
 - Tests : `?demo=explode|field|tour|dossier|pieces|labels|distances`.
 - GLB attendu : objets nommés selon /workspace/projets/titor-c204/manuel/NOMS-OBJETS.md ; actions idle, startup, spin_singularities, field_pulse, jump, explode.
@@ -9,8 +9,9 @@
 - Pages du manuel (docs/manuel-p5..7.jpg) : Internet Archive « JohnTitorTimeMachineManual », documents publiés anonymement en 2000-2001, licence inconnue ; reproduction documentaire réduite.
 - Three.js (MIT) via jsDelivr. Sons : voir v0.4 (packs Kenney CC0). Textures faites en code.
 ## Prochaines étapes
-- Test QA de la v0.8 et mesure des fps / du son sur le S20 ; Safari et verrouillage d'orientation non testés.
-- Pièces n°7 et n°20 encore absentes du modèle 3D (voir v0.7). Les pièces n°16 à 20 n'ont pas de « Donnée technique » dans le document source : rien n'est inventé.
+- Test QA de la v0.9 et mesure des fps / du son sur le S20 ; Safari et verrouillage d'orientation non testés.
+- Les pièces n°16 à 19 n'ont pas de « Donnée technique » dans le document source (n°20 non plus) : rien n'est inventé.
+- L'unité C204 embarquée dans `corvette.glb` reste celle de la v1 (les 6 nouvelles pièces n'y figurent pas).
 
 ## v0.2 — 11 nov. 2026
 - Vrai modèle branché : `assets/c204_static_preview.glb` (3D · Modélisation & textures puis 3D · Rendu & export GLB, d'après le manuel ; original, 132 Ko, 5 520 triangles, Draco + WebP). Le fichier chargé est choisi dans `assets/model.json`.
@@ -161,3 +162,24 @@ Demande : enrichir le panneau Pièces et les fiches d'après `/workspace/games3d
 - **Tests** : `/workspace/games3d/titor-c204-tests/t08.js` (extension de t07 ; Playwright + Chrome, tactile, 412×915 et 915×412) : fiches avec donnée technique (n°12, 4, 13) et sans (n°16), section Caractéristiques et notes, overlay marche/arrêt sur Machine et Corvette (4 pastilles visibles), en-tête, étiquettes sans chevauchement, 0 erreur, 0 requête 404. `?demo=distances`.
 - **Captures** : `/workspace/games3d/titor-c204-v08-fiche.png` (fiche n°12 + donnée technique), `titor-c204-v08-caracteristiques.png`, `titor-c204-v08-distances.png`.
 - **Limites** : pièces 7 et 20 toujours non mappées ; n°16–20 sans donnée technique (document) ; fps réel du S20 non mesuré ; Safari non testé. Les distances sont un schéma de lecture, pas une simulation physique.
+
+## v0.9 — pièces 7 et 20 + exemplaires 9/12/13 (11 nov. 2026)
+Demande : brancher le GLB C204 **v2** (`/workspace/assets3d/titor-c204/glb/c204.glb`, Draco + WebP, 335 472 o ≈ 328 Ko, 103 nœuds, 6 actions conservées, `explode` à 86 canaux). Aucun nœud v1 retiré ni renommé. La v1 est conservée dans `glb/c204_v1.glb`. Copié vers `assets/c204.glb` (toujours pointé par `assets/model.json`).
+- **Nouveaux nœuds** (enfants de `c204_root`) ajoutés dans `data.js` :
+
+| N° | Désignation | Nœuds | Qté document | Dans le GLB |
+|---|---|---|---|---|
+| 7 | Capteur de singularité / rayon | `radius_sensor_main`, `radius_sensor_steering` | 2 | 2 (désormais visible) |
+| 9 | Pompe de refroidissement | `cooling_pump`, `cooling_pump_2` | 2 | 2 (était 1) |
+| 12 | Horloge au césium | `cesium_clock_1..4` | 4 | 4 (était 3) |
+| 13 | Unité informatique principale | `control_computer_1..3` | 3 | 3 (était 2) |
+| 20 | Pare-feu / protection radiations | `radiation_firewall` | 1 | 1 (désormais visible) |
+
+- Les mentions « Pas encore visible sur le modèle » pour les n°7 et n°20 sont retirées. Le surlignage et les étiquettes suivent tous les exemplaires. Les quantités affichées restent celles du document (déjà justes).
+- **Étiquettes** : 20/20 visibles, chevauchement 0, cibles 44 px, en 412×915 et 915×412.
+- **Clic** : toucher n°7 ou n°20 ouvre la bonne fiche. Ces deux pièces sont sous le pont (`housing_deck`, environ 11 cm au-dessus) ; le pare-feu est une plaque de 8 mm. En vue repos, le couvercle ou le pont intercepte souvent le rayon. En vue Éclatée, un cadrage de face les rend touchables. `radius_sensor_*` et `radiation_firewall` sont aussi dans `NAME2ID` pour entrer dans `pickables` (sans eux le rayon les traversait).
+- **Explode** : les 6 nouveaux nœuds sont dans les 86 canaux et se déplacent (plus de 5 cm).
+- **Corvette** : pas de régression (navigation, fiche Installation, Distances, retour Machine). L'unité dans `corvette.glb` reste la v1, ce fichier n'a pas été remplacé.
+- **Tests** : `/workspace/games3d/titor-c204-tests/t09.js` (extension de t08), 412×915 et 915×412, en local puis en ligne. 0 erreur, 0 requête 404.
+- **Captures** : `/workspace/games3d/titor-c204-v09-pieces.png` (mode Étiquettes 20/20), `titor-c204-v09-n20.png` (fiche n°20 surlignée, vue éclatée).
+- **Limites** : n°16–20 toujours sans « Donnée technique » (document) ; C204 dans la Corvette encore en v1 ; fps S20 non mesuré ; Safari non testé. Clic n°7/n°20 plus fiable en vue éclatée.
