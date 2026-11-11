@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#05080c">
+<title>C204 · Unité de déplacement temporel (simulation 3D)</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<header id="top">
+  <div class="ttl"><b>ARMY MODEL GE / C204</b><span>Gravity Distortion Time Displacement Unit · simulation</span></div>
+  <button id="bFull" class="ico" aria-label="Plein écran">⛶</button>
+</header>
+<div id="hint">Touche une pièce pour sa fiche · glisse pour tourner · pince pour zoomer</div>
+
+<div id="status" class="hidden">
+  <div id="stTitle">SÉQUENCE DE DÉMARRAGE</div>
+  <ol id="stSteps"></ol>
+  <div id="gauges">
+    <div><label>Rotation singularités</label><i><em id="gRpm"></em></i></div>
+    <div><label>Distorsion gravitationnelle</label><i><em id="gGrav"></em></i></div>
+  </div>
+  <div id="stDest">Destination : <b id="destTxt">—</b></div>
+  <div id="count"></div>
+  <button id="bAbort" class="danger">ARRÊT D'URGENCE</button>
+</div>
+
+<section id="sheet" class="hidden">
+  <button class="close" data-close="sheet">✕</button>
+  <div id="shRef"></div>
+  <h2 id="shTitle"></h2>
+  <div id="shEn"></div>
+  <p id="shBody"></p>
+  <p id="shNote"></p>
+  <div id="tourNav" class="hidden"><button id="tPrev">◀ Précédent</button><span id="tPos"></span><button id="tNext">Suivant ▶</button></div>
+</section>
+
+<section id="dateBox" class="hidden">
+  <button class="close" data-close="dateBox">✕</button>
+  <h2>Choisir la destination</h2>
+  <div class="quick">
+    <button data-d="1975-01-01">1975 · IBM 5100</button>
+    <button data-d="2000-11-02">2000 · premiers messages</button>
+    <button data-d="2036-01-01">2036 · retour</button>
+  </div>
+  <input type="date" id="dateIn" value="1975-01-01" min="1900-01-01" max="2100-12-31">
+  <button id="bGo" class="primary">LANCER LA SÉQUENCE</button>
+  <p class="small">Simulation visuelle : aucune machine réelle de ce type n'a été démontrée.</p>
+</section>
+
+<section id="dossier" class="hidden"><div class="inner">
+  <button class="close" data-close="dossier">✕</button>
+  <div id="dosContent"></div>
+</div></section>
+
+<nav id="bar">
+  <button id="bStart" class="primary">⏻<span>Démarrer</span></button>
+  <button id="bExplode">⇱<span>Éclatée</span></button>
+  <button id="bTour">▶<span>Visite</span></button>
+  <button id="bField">◎<span>Champ</span></button>
+  <button id="bDossier">☰<span>Dossier</span></button>
+</nav>
+<div id="flash"></div>
+<div id="loading">Chargement de l'unité C204…</div>
+<script type="module" src="main.js"></script>
+</body>
+</html>
