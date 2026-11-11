@@ -249,7 +249,27 @@ export function createCorvette({ renderer, makeLoader, c204Ready, onReady }) {
     const k = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * 46 / hpx;
     hotspots.forEach(h => h.scale.set(k * 256 / 96, k, 1));
   }
+  const V2_PARTS = ['radius_sensor_main', 'radius_sensor_steering', 'radiation_firewall', 'cooling_pump_2', 'cesium_clock_4', 'control_computer_3'];
+  function replaceC204v2(unit, src) {
+    if (!unit || !src) return { ok: false, parts: [] };
+    const found = V2_PARTS.filter(n => !!src.getObjectByName(n));
+    if (found.length < V2_PARTS.length) return { ok: false, parts: found };
+    // retire le c204_root v1 (et ses maillages) ; garde les prises câble cable_c204_* (installation)
+    [...unit.children].forEach(c => {
+      if (/^cable_c204/.test(c.name)) return;
+      unit.remove(c);
+      c.traverse(o => { if (o.isMesh) o.geometry?.dispose(); });
+    });
+    const clone = src.clone(true);
+    clone.name = 'c204_root';
+    clone.position.set(0, 0, 0);
+    clone.rotation.set(0, 0, 0);
+    clone.scale.set(1, 1, 1);
+    unit.add(clone);
+    return { ok: true, parts: found };
+  }
   function attachUnit(r) {
+
     let u = r.getObjectByName('c204_unit');
     if (u) { unit = u; return; } // le GLB livre sa propre C204
     unit = named('c204_unit', new THREE.Group()); unit.position.set(-0.34, FLOOR + 0.04, -0.4); unit.rotation.y = Math.PI / 2; r.add(unit);
@@ -282,21 +302,27 @@ export function createCorvette({ renderer, makeLoader, c204Ready, onReady }) {
     makeLoader().load(url, gltf => {
       let n = 0; gltf.scene.traverse(() => n++); // nœuds du fichier, avant fusion
       const animated = new Set(gltf.animations.flatMap(c => c.tracks.map(t => t.name.split('.')[0])));
-      const u = gltf.scene.getObjectByName('c204_unit'); if (u) mergeStatic(u, animated); // C204 dans la voiture : ~90 pièces -> une poignée de draw calls
-      setRoot(gltf.scene); source = url; if (holder.parent) holder.updateMatrixWorld(true);
-      mixer = new THREE.AnimationMixer(gltf.scene); actions = {};
-      gltf.animations.forEach(c => { const n = c.name.toLowerCase(); const k = ACTS.find(a => matchKey(n, a)); if (k && !actions[k]) actions[k] = mixer.clipAction(c); });
-      mixer.addEventListener('finished', e => { if (e.direction < 0 && e.action !== actions.jump) e.action.stop(); });
-      const jc = actions.jump?.getClip(); jumpScales = [];
-      jc?.tracks.forEach(t => { if (t.name.endsWith('.scale')) { const o = gltf.scene.getObjectByName(t.name.split('.')[0]); if (o) jumpScales.push([o, o.scale.clone()]); } });
-      actions.idle?.setLoop(THREE.LoopRepeat).play();
-      if (actions.wheels_spin) actions.wheels_spin.setLoop(THREE.LoopRepeat);
-      if (actions.top_down) toggle('top', target.top > 0.5, true); // garde l'état choisi (capote repliée par défaut)
-      if (actions.doors_open && target.doors) toggle('doors', true, true);
-      if (actions.hood_open && target.hood) toggle('hood', true, true);
-      glbInfo = { nodes: n - 1, merged: true, sceneNodes: (() => { let k = 0; gltf.scene.traverse(() => k++); return k - 1; })(), size: restBox.getSize(new THREE.Vector3()).toArray().map(v => +v.toFixed(2)), clips: gltf.animations.map(c => [c.name, +c.duration.toFixed(2)]) };
-      console.log('GLB Corvette chargé', url, Object.keys(actions), glbInfo.size);
-      onReady?.();
+      // attend le GLB Machine déjà en cache (c204Ready), remplace l'unité v1, puis fusionne
+      c204Ready.then(src => {
+        const u = gltf.scene.getObjectByName('c204_unit');
+        let unitV2 = false, unitV2Parts = [];
+        if (u && src) { const r = replaceC204v2(u, src); unitV2 = r.ok; unitV2Parts = r.parts; }
+        if (u) mergeStatic(u, animated); // C204 dans la voiture : ~90 pièces -> une poignée de draw calls
+        setRoot(gltf.scene); source = url; if (holder.parent) holder.updateMatrixWorld(true);
+        mixer = new THREE.AnimationMixer(gltf.scene); actions = {};
+        gltf.animations.forEach(c => { const n = c.name.toLowerCase(); const k = ACTS.find(a => matchKey(n, a)); if (k && !actions[k]) actions[k] = mixer.clipAction(c); });
+        mixer.addEventListener('finished', e => { if (e.direction < 0 && e.action !== actions.jump) e.action.stop(); });
+        const jc = actions.jump?.getClip(); jumpScales = [];
+        jc?.tracks.forEach(t => { if (t.name.endsWith('.scale')) { const o = gltf.scene.getObjectByName(t.name.split('.')[0]); if (o) jumpScales.push([o, o.scale.clone()]); } });
+        actions.idle?.setLoop(THREE.LoopRepeat).play();
+        if (actions.wheels_spin) actions.wheels_spin.setLoop(THREE.LoopRepeat);
+        if (actions.top_down) toggle('top', target.top > 0.5, true); // garde l'état choisi (capote repliée par défaut)
+        if (actions.doors_open && target.doors) toggle('doors', true, true);
+        if (actions.hood_open && target.hood) toggle('hood', true, true);
+        glbInfo = { nodes: n - 1, merged: true, sceneNodes: (() => { let k = 0; gltf.scene.traverse(() => k++); return k - 1; })(), size: restBox.getSize(new THREE.Vector3()).toArray().map(v => +v.toFixed(2)), clips: gltf.animations.map(c => [c.name, +c.duration.toFixed(2)]), unitV2, unitV2Parts };
+        console.log('GLB Corvette chargé', url, Object.keys(actions), glbInfo.size, unitV2 ? 'C204 v2' : 'C204 v1');
+        onReady?.();
+      });
     }, undefined, e => { source = 'procédural (GLB non chargé)'; console.warn('GLB Corvette non chargé, modèle provisoire gardé', url, e?.message || e); });
   })();
 
@@ -358,11 +384,15 @@ export function createCorvette({ renderer, makeLoader, c204Ready, onReady }) {
     let tris = 0, meshes = 0; holder.traverse(o => { if (o.isMesh && o.visible && !o.userData.hitbox) { meshes++; const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
     const cr = root?.getObjectByName('corvette_root') || root; const ws = cr ? cr.getWorldScale(new THREE.Vector3()).x : 1;
     const act = Object.fromEntries(Object.entries(actions).map(([k, a]) => [k, { running: a.isRunning(), scheduled: a.isScheduled(), time: +a.time.toFixed(2), ts: a.timeScale, loop: a.loop === THREE.LoopOnce ? 'once' : 'repeat', clamp: a.clampWhenFinished }]));
-    return { source, glb: glbInfo, meshes, tris: Math.round(tris), actions: Object.keys(actions), act, visible: holder.visible && (root?.visible ?? false) && ws > 0.01, scale: holder.scale.x, rootScale: +ws.toFixed(3), state: { ...state }, unit: !!unit, unitGLB: !!scene.getObjectByName('c204_unit_glb') || !!glbInfo, names: Object.keys(groups) };
+    return { source, glb: glbInfo, meshes, tris: Math.round(tris), actions: Object.keys(actions), act, visible: holder.visible && (root?.visible ?? false) && ws > 0.01, scale: holder.scale.x, rootScale: +ws.toFixed(3), state: { ...state }, unit: !!unit, unitGLB: !!scene.getObjectByName('c204_unit_glb') || !!glbInfo, unitV2: !!(glbInfo && glbInfo.unitV2), unitV2Parts: (glbInfo && glbInfo.unitV2Parts) || [], unitLocal: unit ? { p: unit.position.toArray().map(v => +v.toFixed(4)), r: unit.quaternion.toArray().map(v => +v.toFixed(4)), s: unit.scale.toArray().map(v => +v.toFixed(4)) } : null, names: Object.keys(groups) };
   }
   return {
     scene, update, toggle, spin, startJump, hide, show, endJump, highlight, stats,
     sizeHotspots, showHotspots(v) { hotspots.forEach(h => h.visible = v); }, get hotspots() { return hotspots; },
+    unitInfo() {
+      const u = unit, loc = u ? { p: u.position.toArray().map(v => +v.toFixed(4)), r: u.quaternion.toArray().map(v => +v.toFixed(4)), s: u.scale.toArray().map(v => +v.toFixed(4)) } : null;
+      return { v2: !!(glbInfo && glbInfo.unitV2), parts: (glbInfo && glbInfo.unitV2Parts) || [], local: loc, hasRoot: !!(u && u.getObjectByName('c204_root')), cores: !!(u && u.getObjectByName('singularity_main_core') && u.getObjectByName('singularity_steering_core')) };
+    },
     jumpClock() { return actions.jump ? actions.jump.time : Math.max(0, jumpT); }, // horloge du saut (temps du clip, ou du code)
     get jumpTiming() { return actions.jump ? JUMP_GLB : JUMP_CODE; },
     get bbox() { return restBox; },

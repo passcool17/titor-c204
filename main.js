@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { PARTS, TOUR, STEPS, DOSSIER, BOM, BOM_META, BOM_NOTES, PART_TECH, UNIT_SPECS, REF_NOTES, REF_FOOTER } from './data.js?v=0.9';
+import { PARTS, TOUR, STEPS, DOSSIER, BOM, BOM_META, BOM_NOTES, PART_TECH, UNIT_SPECS, REF_NOTES, REF_FOOTER } from './data.js?v=0.10';
 import { CAR_PARTS, CAR_STEPS } from './data-car.js?v=0.8';
 import { createCorvette } from './corvette.js?v=0.8';
 
@@ -176,7 +176,9 @@ async function tryGLB() {
     machine.traverse(o => { if (o.isMesh) { o.geometry.dispose(); } if (o.isSprite) o.material.dispose?.(); });
     Object.values(M).forEach(m => { m.map?.dispose(); m.dispose(); });
     pickables.length = 0; for (const k in groups) delete groups[k]; explodeData.length = 0; singRot.length = 0;
-    const root = gltf.scene; glbRoot = root; { const l = root.getObjectByName('lid'); if (l) l.userData.r0 = l.rotation.x; } machine.clear(); machine.add(root); scene.add(machine);
+    const root = gltf.scene; glbRoot = root;
+    const c204Bind = root.clone(true); // pose de repos, avant retouches et idle : clone pour la Corvette, sans second téléchargement
+    { const l = root.getObjectByName('lid'); if (l) l.userData.r0 = l.rotation.x; } machine.clear(); machine.add(root); scene.add(machine);
     root.updateMatrixWorld(true);
     const bbAll = new THREE.Box3().setFromObject(root), ctr = bbAll.getCenter(new THREE.Vector3());
     const parts = []; root.traverse(o => { if (o !== root && o.parent && !o.parent.userData.part) { const id = idFor(o.name); if (id) parts.push([id, o]); } });
@@ -217,7 +219,7 @@ async function tryGLB() {
     actions.idle?.play();
     console.log('GLB C204 chargé', url, parts.length, 'pièces', Object.keys(actions), bbAll.getSize(new THREE.Vector3()).toArray().map(v => v.toFixed(2)));
     window.__c204.glb = { url, parts: parts.length, actions: Object.keys(actions) };
-    c204Resolve(root);
+    c204Resolve(c204Bind);
   }, undefined, e => { console.warn('GLB non chargé', e); c204Resolve(null); });
 }
 tryGLB();
@@ -948,7 +950,7 @@ if (demo === 'dossier') $('#bDossier').click();
 if (demo === 'pieces') openParts();
 if (demo === 'labels') setLabels(true);
 if (demo === 'distances') setDistances(true);
-window.__c204 = { version: '0.9', overview: () => overview(), setLidOpen(on) {
+window.__c204 = { version: '0.10', overview: () => overview(), stopCam() { camAnim = null; }, unitInfo() { return car?.unitInfo?.() || null; }, setLidOpen(on) {
   const a = actions.startup; if (!a || !mixer) return false;
   if (on) {
     a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true;

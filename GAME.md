@@ -1,7 +1,7 @@
 # Machine C204 (John Titor) — page 3D interactive
 - Lien jouable : https://passcool17.github.io/titor-c204/
 - Dépôt : https://github.com/passcool17/titor-c204 (bot Arcade 3D)
-- État : v0.9 — scène Machine (GLB c204.glb **v2**, 103 nœuds), scène Corvette 1967 (GLB corvette.glb v2), les 20 pièces du bon de commande sont visibles sur la Machine, panneau Pièces, Étiquettes 20/20, Distances de sécurité.
+- État : v0.10 — scène Machine (GLB c204.glb **v2**, 103 nœuds), scène Corvette 1967 (GLB corvette.glb v2) avec l'unité C204 **v2** (les 6 pièces ajoutées) à la même place, panneau Pièces, Étiquettes 20/20, Distances de sécurité.
 - Contrôles : glisser pour tourner, pincer pour zoomer, toucher une pièce = fiche. Boutons : Démarrer (choix de date, séquence 8 étapes, compte à rebours, saut simulé, arrêt d'urgence), Éclatée, Visite (22 pièces), Champ (sinusoïde de Tipler, p.5), Dossier (histoire, manuel, IBM 5100, prédictions, identité, physique, tableau Vérifié/Non vérifié), Pièces (bon de commande des 20 pièces, données techniques, caractéristiques de l'unité), Étiquettes (numéros sur le modèle, scène Machine), Distances (repères de sécurité autour de la Machine ou de la Corvette).
 - Tests : `?demo=explode|field|tour|dossier|pieces|labels|distances`.
 - GLB attendu : objets nommés selon /workspace/projets/titor-c204/manuel/NOMS-OBJETS.md ; actions idle, startup, spin_singularities, field_pulse, jump, explode.
@@ -9,9 +9,8 @@
 - Pages du manuel (docs/manuel-p5..7.jpg) : Internet Archive « JohnTitorTimeMachineManual », documents publiés anonymement en 2000-2001, licence inconnue ; reproduction documentaire réduite.
 - Three.js (MIT) via jsDelivr. Sons : voir v0.4 (packs Kenney CC0). Textures faites en code.
 ## Prochaines étapes
-- Test QA de la v0.9 et mesure des fps / du son sur le S20 ; Safari et verrouillage d'orientation non testés.
-- Les pièces n°16 à 19 n'ont pas de « Donnée technique » dans le document source (n°20 non plus) : rien n'est inventé.
-- L'unité C204 embarquée dans `corvette.glb` reste celle de la v1 (les 6 nouvelles pièces n'y figurent pas).
+- Test QA de la v0.10 et mesure des fps / du son sur le S20 ; Safari et verrouillage d'orientation non testés.
+- Les pièces n°16 à 20 n'ont pas de « Donnée technique » dans le document source : rien n'est inventé.
 
 ## v0.2 — 11 nov. 2026
 - Vrai modèle branché : `assets/c204_static_preview.glb` (3D · Modélisation & textures puis 3D · Rendu & export GLB, d'après le manuel ; original, 132 Ko, 5 520 triangles, Draco + WebP). Le fichier chargé est choisi dans `assets/model.json`.
@@ -183,3 +182,20 @@ Demande : brancher le GLB C204 **v2** (`/workspace/assets3d/titor-c204/glb/c204.
 - **Tests** : `/workspace/games3d/titor-c204-tests/t09.js` (extension de t08), 412×915 et 915×412, en local puis en ligne. 0 erreur, 0 requête 404.
 - **Captures** : `/workspace/games3d/titor-c204-v09-pieces.png` (mode Étiquettes 20/20), `titor-c204-v09-n20.png` (fiche n°20 surlignée, vue éclatée).
 - **Limites** : n°16–20 toujours sans « Donnée technique » (document) ; C204 dans la Corvette encore en v1 ; fps S20 non mesuré ; Safari non testé. Clic n°7/n°20 plus fiable en vue éclatée.
+
+## v0.10 — unité C204 v2 dans la Corvette (11 nov. 2026)
+Demande : remplacer, dans la scène Corvette, l'unité C204 v1 embarquée dans `corvette.glb` par l'unité v2 déjà chargée pour la Machine (`assets/c204.glb`).
+- **Méthode** : `corvette.glb` n'est pas modifié (l'original reste dans l'historique). À l'exécution, les enfants de `c204_unit` autres que les prises `cable_c204_*` (installation) sont retirés ; un clone de `c204.glb` v2 (pris dans `c204Ready`, pose de repos, **sans second téléchargement**) est attaché à `c204_unit` avec une transformation identité. Le nœud `c204_unit` garde sa pose d'origine : position locale (−0,02 ; 0,334 ; −0,92), rotation identité, échelle 1. Puis `mergeStatic` fusionne les maillages fixes, comme avant. Les animations `idle` et `jump` (qui animent `c204_unit` et les deux cœurs) sont branchées après le remplacement, donc elles trouvent les nœuds v2.
+- **Enveloppe** : la boîte de l'unité v2 est identique à celle de la v1 (1,144 × 0,380 × 0,640 m dans l'espace de `c204_root`). Les 6 nouvelles pièces restent à l'intérieur (poignées et télécommande définissent déjà les extrêmes). Aucun dépassement nouveau vers la carrosserie ou le coffre. Contrôle visuel : l'unité reste à l'arrière côté passager, sans traverser les panneaux ni le coffre.
+- **Draw calls** (scène Corvette, 412×915, après fusion) :
+
+| | Appels | Triangles (rendu) | Maillages (voiture) | Triangles (voiture) |
+|---|---|---|---|---|
+| v0.9 (unité v1) | **60** | 14 918 | 51 | 14 676 |
+| v0.10 (unité v2) | **60** | 15 086 (+168) | 51 | 14 844 (+168) |
+
+Cible 60–70 respectée. Les +168 triangles correspondent aux 6 pièces ajoutées dans le GLB v2 (5 520 → 5 688).
+- **Inchangé** : liens #machine / #corvette, fiche Installation, bouton « C204 ▸ », overlay Distances, en-tête, saut. La Machine n'a pas de régression (t09 repris dans t10).
+- **Tests** : `/workspace/games3d/titor-c204-tests/t10.js` (extension de t09), 412×915 et 915×412, en local puis en ligne. 0 erreur, 0 requête 404.
+- **Captures** : `/workspace/games3d/titor-c204-v010-corvette.png` (portrait 412×915), `titor-c204-v010-corvette-paysage.png` (915×412).
+- **Limites** : les 6 nouvelles pièces, une fois fusionnées, ne sont plus des nœuds nommés séparés (comme le reste de l'unité) ; fps S20 non mesuré ; Safari non testé. Si le GLB Machine ne se charge pas, l'unité v1 du `corvette.glb` est conservée.
