@@ -9,7 +9,7 @@ button:active{transform:scale(.97)}
 #top{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;background:linear-gradient(#05080cee,#05080c00);pointer-events:none}
 #top .ttl{flex:1}#top b{display:block;letter-spacing:.08em;font-size:15px;color:#ffd75a}
 #top span{font-size:11px;opacity:.75}
-.ico{pointer-events:auto;width:40px;height:40px;padding:0;font-size:20px}
+.ico{pointer-events:auto;width:44px;height:44px;padding:0;font-size:20px}
 .ico.off{opacity:.6}
 #hint{position:fixed;top:64px;left:0;right:0;text-align:center;font-size:12px;opacity:.7;pointer-events:none;transition:opacity 1s}
 #bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:6px;padding:8px 8px calc(env(safe-area-inset-bottom) + 8px);background:linear-gradient(#05080c00,#05080cf2 35%)}
@@ -17,19 +17,20 @@ button:active{transform:scale(.97)}
 #bar button span{font-size:11px;margin-top:2px}
 #bar button.on{background:#2a3a10;border-color:#c9e85a}
 #sheet,#dateBox{position:fixed;left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom) + 74px);max-height:46vh;overflow:auto;background:#0b131bf2;border:1px solid #2f4352;border-radius:14px;padding:14px 14px 12px;backdrop-filter:blur(6px)}
-#sheet h2,#dateBox h2{font-size:17px;color:#ffd75a;margin:2px 30px 4px 0}
+#sheet h2,#dateBox h2{font-size:17px;color:#ffd75a;margin:2px 44px 4px 0}
 #shRef{font-size:11px;color:#29c99a;letter-spacing:.05em}
 #shEn{font:12px monospace;opacity:.7;margin-bottom:6px}
 #shBody{margin-bottom:6px}#shNote{font-size:12px;opacity:.75;border-left:3px solid #ffd75a;padding-left:8px}
-.close{position:absolute;top:8px;right:8px;width:34px;height:34px;padding:0}
+.close{position:absolute;top:4px;right:4px;width:44px;height:44px;padding:0;font-size:16px}
 #tourNav{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:6px}
 #tourNav span{font-size:12px;opacity:.7}
+#tourNav button{min-height:44px}
 #dateBox .quick{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
-#dateBox .quick button{font-size:12px}
-#dateBox input{width:100%;font-size:18px;padding:8px;border-radius:10px;border:1px solid #2f4352;background:#05080c;color:#fff;margin-bottom:8px;color-scheme:dark}
+#dateBox .quick button{font-size:12px;min-height:44px}
+#dateBox input{width:100%;font-size:18px;padding:8px;border-radius:10px;border:1px solid #2f4352;background:#05080c;color:#fff;margin-bottom:8px;color-scheme:dark;min-height:44px}
 #dateBox .primary{width:100%;padding:12px;font-weight:700}
 .small{font-size:11px;opacity:.65;margin-top:8px}
-#status{position:fixed;top:70px;left:8px;width:min(260px,70vw);background:#0b131bd9;border:1px solid #29c99a66;border-radius:12px;padding:10px;font:11px/1.35 monospace}
+#status{position:fixed;z-index:20;top:70px;left:8px;width:min(260px,70vw);background:#0b131bd9;border:1px solid #29c99a66;border-radius:12px;padding:10px;font:11px/1.35 monospace}
 #stTitle{color:#29c99a;font-weight:700;margin-bottom:4px}
 #stSteps{list-style:none;max-height:150px;overflow:hidden}
 #stSteps li{opacity:.45}#stSteps li.done{opacity:1;color:#bfffe6}#stSteps li.done::before{content:"✔ "}#stSteps li.cur{opacity:1;color:#ffd75a}#stSteps li.cur::before{content:"▸ "}
@@ -37,11 +38,13 @@ button:active{transform:scale(.97)}
 #gauges i{display:block;height:6px;background:#1c2a35;border-radius:3px;overflow:hidden;margin:2px 0 4px}
 #gauges em{display:block;height:100%;width:0;background:linear-gradient(90deg,#29c99a,#ffd75a,#ff5555)}
 #count{font-size:34px;text-align:center;color:#ffd75a;min-height:0}
-#bAbort{width:100%;margin-top:6px;font-size:12px}
-#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
-#loading{position:fixed;inset:0;display:grid;place-items:center;background:#05080c;color:#ffd75a;letter-spacing:.1em;transition:opacity .6s}
-#dossier{position:fixed;inset:0;background:#05080cf5;overflow:auto;-webkit-overflow-scrolling:touch}
-#dossier .inner{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 16px 40px;position:relative}
+#bAbort{width:100%;margin-top:6px;font-size:12px;min-height:44px}
+#flash{position:fixed;z-index:60;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
+#loading{position:fixed;z-index:70;inset:0;display:grid;place-items:center;background:#05080c;color:#ffd75a;letter-spacing:.1em;transition:opacity .6s}
+#dossier{position:fixed;z-index:50;inset:0;background:#05080cf5;overflow:auto;-webkit-overflow-scrolling:touch}
+#dossier .inner{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 96px);position:relative}
+#dossier .close{position:fixed;z-index:51;top:calc(env(safe-area-inset-top) + 8px);right:max(10px,calc(50vw - 352px));background:#16212bf2}
+body.dos-open #bar,body.dos-open #top{pointer-events:none!important;visibility:hidden}
 #dossier h1{font-size:20px;color:#ffd75a;margin:0 40px 6px 0}
 #dossier h3{font-size:15px;color:#29c99a;margin:18px 0 6px}
 #dossier p,#dossier li{margin-bottom:6px}#dossier ul{padding-left:18px}
@@ -53,3 +56,17 @@ button:active{transform:scale(.97)}
 #dossier a{color:#7fd3ff}
 #dossier .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
 #dossier .tabs button{font-size:12px;padding:6px 8px}
+#sheet,#dateBox{z-index:10}
+/* paysage bas (téléphone couché) : panneau de séquence à gauche, fiche à droite, aucun chevauchement */
+@media (orientation:landscape) and (max-height:520px){
+  #top{padding-top:calc(env(safe-area-inset-top) + 4px);padding-bottom:4px}
+  #hint{top:54px}
+  #status{top:56px;width:min(300px,38vw);max-height:calc(100vh - 56px - 70px);overflow:auto;padding:8px}
+  #stSteps{max-height:84px;overflow:auto}
+  #count{font-size:24px}
+  #sheet,#dateBox{left:auto;right:8px;width:min(440px,calc(100vw - min(300px,38vw) - 32px));top:56px;bottom:calc(env(safe-area-inset-bottom) + 70px);max-height:none}
+  #bar{padding-top:4px;padding-bottom:calc(env(safe-area-inset-bottom) + 4px)}
+  #bar button{flex-direction:row;justify-content:center;gap:6px;min-height:44px}
+  #bar button span{margin-top:0}
+}
+#bAbort{position:sticky;bottom:0}

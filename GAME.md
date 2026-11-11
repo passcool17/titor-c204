@@ -46,3 +46,16 @@
 | jump | 36 / 29 Ko | computerNoise_003, laserLarge_000-003, lowFrequency_explosion_000, thrusterFire_001 |
 | explode | 14 / 12 Ko | spaceEngineSmall_000, doorOpen_000, impactMetal_light_000-003, impactMetal_medium_003 |
 | abort | 32 / 20 Ko | error_007, spaceEngine_001 (ralenti) |
+
+## v0.4.1 — corrections du rapport QA (11 nov. 2026)
+Rapport : /workspace/qa/titor-c204/rapport-2026-11-11.md (v0.4, 7a160e7).
+1. (Haute) ARRÊT D'URGENCE pendant le saut : l'arrêt agit tout de suite (les attentes en cours sont annulées). `endJump()` remet toujours la machine visible, le flash à 0, les particules et `jumpT`, arrête l'action `jump` en fondu, relance `idle` et coupe le son du saut.
+2. (Moyenne) Paysage (hauteur ≤ 520 px) : le panneau de séquence est à gauche et la fiche à droite, sans chevauchement. Le panneau passe au-dessus des fiches (z-index) et ARRÊT D'URGENCE reste collé en bas du panneau, toujours touchable.
+3. (Moyenne) Dossier : il passe au-dessus de tout (z-index 50), avec un ✕ fixe toujours visible et un espace en bas pour la dernière ligne. La barre du bas et l'en-tête sont inactifs pendant qu'il est ouvert ; Démarrer ferme le Dossier.
+4. (Moyenne) Démarrer en vue Éclatée : `startSeq` referme d'abord la vue éclatée (`explode` à l'envers, en environ 0,8 s), puis ouvre le couvercle. À son retour au début, `explode` est arrêtée pour ne plus se mélanger aux autres actions.
+5. (Basse) Son : il se débloque au premier vrai geste n'importe où (pointerdown, pointerup, touchend, keydown, click, en capture, canvas compris, glisser compris). L'AudioContext n'est créé qu'après une activation réelle (`navigator.userActivation`), donc sans avertissement.
+6. (Basse) Cibles tactiles d'au moins 44x44 px : 🔊, ⛶, tous les ✕, ARRÊT D'URGENCE, Précédent et Suivant, dates rapides, champ de date.
+7. (Basse) Le retour d'Éclatée part tout de suite : quand l'action est figée à la fin, time = duration, paused = false, enabled = true, puis timeScale -1.
+- Défaut connu : la ligne d'aide est cachée pendant la séquence.
+- Version visible dans `window.__c204.version`, et `?v=0.4.1` ajouté sur main.js et style.css (cache).
+- Tests Playwright (playwright-core + Chrome de la box, tactile) en 412x915 et 915x412, script dans /workspace/games3d/titor-c204-tests/t041.js : chaque scénario de bug rejoué, 0 erreur, 0 avertissement.

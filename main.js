@@ -203,6 +203,8 @@ async function tryGLB() {
     if (cm && cs) { const pm = cm.getWorldPosition(new THREE.Vector3()), ps = cs.getWorldPosition(new THREE.Vector3()); field.position.copy(pm).add(ps).multiplyScalar(0.5); coreLight.position.copy(pm); }
     else field.position.copy(ctr);
     mixer = new THREE.AnimationMixer(root);
+    // explode revenue au début : on l'arrête pour qu'elle ne pèse plus sur les autres actions (couvercle de startup)
+    mixer.addEventListener('finished', e => { if (e.action === actions.explode && e.direction < 0) e.action.stop(); });
     gltf.animations.forEach(c => actions[c.name] = mixer.clipAction(c));
     if (actions.spin_singularities) actions.spin ||= actions.spin_singularities; if (actions.field_pulse) actions.field ||= actions.field_pulse;
     if (actions.spin || actions.lid_open) singRot.length = 0; // si l'animation fait tourner, on ne double pas
@@ -241,6 +243,7 @@ const buf = {}, loops = {}, loopVol = { amb_hum: 0, spin_loop: 0, field_loop: 0 
 let ac = null, master = null, muted = localStorage.getItem('c204-muted') === '1';
 function audio() {
   if (!ac) {
+    if (navigator.userActivation && !navigator.userActivation.isActive) return; // pas encore de vrai geste : on attend (évite l'avertissement)
     try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
     master = ac.createGain(); master.gain.value = muted ? 0 : 1; master.connect(ac.destination);
     if (!running) loopVol.amb_hum = 0.16; // ambiance discrète au repos
@@ -279,6 +282,7 @@ function sfx(n, vol = 1, rate = 1) {
   if (!buf[n]) { pending[n] = { t: performance.now(), vol, rate }; return; }
   const s = ac.createBufferSource(); s.buffer = buf[n]; s.playbackRate.value = rate;
   const g = ac.createGain(); g.gain.value = vol; s.connect(g).connect(master); s.start();
+  return { s, g, stop(t = 0.15) { try { g.gain.setTargetAtTime(0, ac.currentTime, t); s.stop(ac.currentTime + t * 5); } catch {} } };
 }
 function setMuted(m) {
   muted = m; localStorage.setItem('c204-muted', m ? '1' : '0');
@@ -287,7 +291,10 @@ function setMuted(m) {
 }
 setMuted(muted);
 $('#bMute').onclick = () => { audio(); setMuted(!muted); };
-addEventListener('pointerdown', audio, { once: true });
+// débloque le son au premier vrai geste, partout (canvas compris, glisser compris)
+const UNLOCK = ['pointerdown', 'pointerup', 'touchend', 'keydown', 'click'];
+function unlockAudio() { audio(); if (ac && ac.state === 'running') UNLOCK.forEach(t => removeEventListener(t, unlockAudio, true)); }
+UNLOCK.forEach(t => addEventListener(t, unlockAudio, { capture: true, passive: true }));
 // clic sur chaque bouton de l'interface (sauf le bouton muet)
 document.addEventListener('click', e => { const b = e.target.closest('button'); if (b && b.id !== 'bMute') { audio(); sfx('click', 0.45); } }, true);
 
@@ -318,7 +325,7 @@ canvas.addEventListener('pointerup', e => {
   if (hit) { tourIdx = null; focusOn(hit.object.userData.part); showPart(hit.object.userData.part); }
   else { $('#sheet').classList.add('hidden'); highlight(null); }
 });
-document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { $('#' + b.dataset.close).classList.add('hidden'); if (b.dataset.close === 'sheet') { highlight(null); tourIdx = null; } });
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { if (b.dataset.close === 'dossier') return closeDossier(); $('#' + b.dataset.close).classList.add('hidden'); if (b.dataset.close === 'sheet') { highlight(null); tourIdx = null; } });
 
 // caméra animée
 let camAnim = null;
@@ -341,30 +348,46 @@ function go() { const id = TOUR[tourIdx]; focusOn(id); showPart(id, tourIdx); }
 
 // vue éclatée
 let explode = 0, explodeTarget = 0;
-$('#bExplode').onclick = () => { explodeTarget = explodeTarget ? 0 : 1; sfx('explode', 0.85, explodeTarget ? 1 : 0.85); camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: new THREE.Vector3(0, explodeTarget ? 0.45 : 0.2, 0), toP: explodeTarget ? new THREE.Vector3(1.7, 2.1, 2.3) : new THREE.Vector3(1.15, 1.45, 1.5) }; $('#bExplode').classList.toggle('on', !!explodeTarget); if (actions.explode) { const a = actions.explode; a.clampWhenFinished = true; a.setLoop(THREE.LoopOnce); a.timeScale = explodeTarget ? 1 : -1; a.paused = false; if (!a.isRunning()) { a.play(); if (!explodeTarget) a.time = a.getClip().duration; } } };
+function setExplode(on, speed = 1) {
+  explodeTarget = on ? 1 : 0; $('#bExplode').classList.toggle('on', on);
+  const a = actions.explode; if (!a) return; // sans GLB : le lerp de explode suit explodeTarget
+  const d = a.getClip().duration, active = a.isScheduled();
+  a.clampWhenFinished = true; a.setLoop(THREE.LoopOnce, 1);
+  if (on) { if (!active) a.reset().play(); a.enabled = true; a.paused = false; a.timeScale = speed; return; }
+  if (!active) return; // déjà refermée
+  if (a.paused && a.time >= d - 1e-3) a.time = d; // figée à la fin : on repart de la fin, tout de suite
+  a.enabled = true; a.paused = false; a.timeScale = -speed;
+}
+$('#bExplode').onclick = () => { setExplode(!explodeTarget); sfx('explode', 0.85, explodeTarget ? 1 : 0.85); camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: new THREE.Vector3(0, explodeTarget ? 0.45 : 0.2, 0), toP: explodeTarget ? new THREE.Vector3(1.7, 2.1, 2.3) : new THREE.Vector3(1.15, 1.45, 1.5) }; };
 $('#bField').onclick = () => { if (running) return; fieldTarget = fieldTarget ? 0 : 0.6; $('#bField').classList.toggle('on', !!fieldTarget); };
 
 // dossier
 $('#dosContent').innerHTML = DOSSIER;
-$('#bDossier').onclick = () => $('#dossier').classList.remove('hidden');
+function openDossier() { $('#sheet').classList.add('hidden'); $('#dateBox').classList.add('hidden'); $('#dossier').classList.remove('hidden'); document.body.classList.add('dos-open'); }
+function closeDossier() { $('#dossier').classList.add('hidden'); document.body.classList.remove('dos-open'); }
+$('#bDossier').onclick = openDossier;
 document.querySelectorAll('#dossier [data-go]').forEach(b => b.onclick = () => document.getElementById(b.dataset.go).scrollIntoView({ behavior: 'smooth' }));
 
 // ---------- séquence de démarrage ----------
 let running = false, rpm = 0, rpmTarget = 0, abortFlag = false;
-const wait = ms => new Promise((r, j) => { const t = setTimeout(() => abortFlag ? j('abort') : r(), ms); });
-$('#bStart').onclick = () => { if (running) return; $('#sheet').classList.add('hidden'); $('#dateBox').classList.remove('hidden'); };
+const waiters = new Set();
+const wait = ms => new Promise((r, j) => { const w = { j, t: setTimeout(() => { waiters.delete(w); abortFlag ? j('abort') : r(); }, ms) }; waiters.add(w); });
+function abortWaits() { waiters.forEach(w => { clearTimeout(w.t); w.j('abort'); }); waiters.clear(); } // l'arrêt agit tout de suite
+$('#bStart').onclick = () => { if (running) return; closeDossier(); $('#sheet').classList.add('hidden'); $('#dateBox').classList.remove('hidden'); };
 document.querySelectorAll('#dateBox .quick button').forEach(b => b.onclick = () => $('#dateIn').value = b.dataset.d);
 $('#bGo').onclick = () => { audio(); $('#dateBox').classList.add('hidden'); startSeq($('#dateIn').value || '1975-01-01'); };
-$('#bAbort').onclick = () => { abortFlag = true; sfx('abort', 0.9); };
+$('#bAbort').onclick = () => { if (abortFlag) return; abortFlag = true; abortWaits(); jumpSnd?.stop(); sfx('abort', 0.9); };
 function fmtDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' }); }
 async function startSeq(dest) {
-  running = true; abortFlag = false; explodeTarget = 0; $('#bExplode').classList.remove('on');
+  running = true; abortFlag = false; $('#hint').classList.add('hidden'); closeDossier();
+  const wasExploded = explodeTarget > 0 || explode > 0.01 || !!actions.explode?.isScheduled();
+  if (wasExploded) { setExplode(false, 2.5); sfx('explode', 0.7, 0.85); } // referme la vue éclatée (≈0,8 s) avant d'ouvrir le couvercle
   $('#destTxt').textContent = fmtDate(dest);
   const ol = $('#stSteps'); ol.innerHTML = STEPS.map(s => `<li>${s[0]}</li>`).join('');
   $('#status').classList.remove('hidden'); $('#count').textContent = ''; $('#bAbort').classList.remove('hidden');
   if (rig?.lever) rig.lever.set ? rig.lever.set(true) : (rig.lever.rotation.x = 0.5);
   sfx('click', 0.9, 0.85); sfx('lid_open', 0.9); // levier puis ouverture du couvercle
-  if (actions.startup) { actions.idle?.fadeOut(0.3); const a = actions.startup.reset(); a.setLoop(THREE.LoopOnce); a.clampWhenFinished = true; a.play(); }
+  if (actions.startup) { const go = () => { if (!running) return; actions.idle?.fadeOut(0.3); const a = actions.startup.reset(); a.setLoop(THREE.LoopOnce); a.clampWhenFinished = true; a.play(); }; wasExploded && actions.explode ? setTimeout(go, 850) : go(); }
   try {
     for (let i = 0; i < STEPS.length; i++) {
       const li = ol.children[i]; li.className = 'cur'; showPart(STEPS[i][1], undefined, true); sfx('beep_soft', 0.4, 0.8 + i * 0.07);
@@ -381,6 +404,7 @@ async function startSeq(dest) {
     await jump(dest);
   } catch (e) {
     $('#count').textContent = 'ARRÊTÉ';
+    endJump(); // arrêt pendant le saut : la machine doit toujours revenir
   }
   rpmTarget = 0; fieldTarget = 0; actions.spin?.fadeOut(1.5); actions.field?.fadeOut(1.5);
   setLoop('amb_hum', 0.16, 1.2); // puis redescend
@@ -389,10 +413,16 @@ async function startSeq(dest) {
   $('#bAbort').classList.add('hidden'); $('#bField').classList.remove('on');
   setTimeout(() => { $('#status').classList.add('hidden'); running = false; }, 4000);
 }
-let jumpT = -1;
+let jumpT = -1, jumpSnd = null;
+function endJump() {
+  machine.visible = true; $('#flash').style.opacity = 0;
+  jumpT = -1; parts.material.opacity = 0; pPos.fill(0); pGeo.attributes.position.needsUpdate = true;
+  if (actions.jump?.isScheduled()) actions.jump.fadeOut(0.3);
+  if (actions.idle && !actions.idle.isRunning()) actions.idle.reset().fadeIn(0.3).play();
+}
 async function jump(dest) {
   actions.jump?.reset().setLoop(THREE.LoopOnce).play();
-  sfx('jump', 1);
+  jumpSnd = sfx('jump', 1);
   jumpT = 0; for (let i = 0; i < N; i++) { pPos.set([(Math.random() - .5) * 1.4, Math.random() * 0.5, (Math.random() - .5) * 0.6], i * 3); const a = Math.random() * 6.28; pVel.set([Math.cos(a) * 2, Math.random() * 2, Math.sin(a) * 2], i * 3); }
   await wait(1400);
   $('#flash').style.opacity = 1; await wait(350);
@@ -435,4 +465,4 @@ if (demo === 'explode') $('#bExplode').click();
 if (demo === 'field') { rpmTarget = 1; fieldTarget = 1; }
 if (demo === 'tour') $('#bTour').click();
 if (demo === 'dossier') $('#bDossier').click();
-window.__c204 = { groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; } };
+window.__c204 = { version: '0.4.1', get machineVisible() { return machine.visible; }, get explode() { const a = actions.explode; return { target: explodeTarget, lerp: +explode.toFixed(3), time: a ? +a.time.toFixed(3) : null, active: a ? a.isScheduled() : false, paused: a ? a.paused : null }; }, groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; } };
