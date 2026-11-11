@@ -172,6 +172,7 @@ async function tryGLB() {
     ['mainSing', 'steerSing'].forEach((id, i) => (groups[id] || []).forEach(g => singRot.push({ spin: g, dir: i ? -1 : 1, halo: null })));
     mixer = new THREE.AnimationMixer(root);
     gltf.animations.forEach(c => actions[c.name] = mixer.clipAction(c));
+    actions.spin ||= actions.spin_singularities; actions.field ||= actions.field_pulse;
     actions.idle?.play();
     console.log('GLB C204 chargé', Object.keys(actions));
   }, undefined, e => console.warn('GLB non chargé', e));
