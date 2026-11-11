@@ -7,7 +7,7 @@
 - GLB attendu : objets nommés selon /workspace/projets/titor-c204/manuel/NOMS-OBJETS.md ; actions idle, startup, spin_singularities, field_pulse, jump, explode.
 ## Ressources
 - Pages du manuel (docs/manuel-p5..7.jpg) : Internet Archive « JohnTitorTimeMachineManual », documents publiés anonymement en 2000-2001, licence inconnue ; reproduction documentaire réduite.
-- Three.js (MIT) via jsDelivr. Sons générés en Web Audio. Textures faites en code.
+- Three.js (MIT) via jsDelivr. Sons : voir v0.4 (packs Kenney CC0). Textures faites en code.
 ## Prochaines étapes
 - Intégrer le GLB de la chaîne 3D (Modélisation → Rig → Rendu & export).
 - Option véhicule (Corvette 1967 / pick-up 4x4) ; musique d'ambiance ; test QA sur S20.
@@ -24,3 +24,25 @@
 - 6 clips branchés : idle, startup (couvercle qui s'ouvre, figé à la fin), spin_singularities, field_pulse, jump, explode (bouton Éclatée, aller-retour).
 - Test local 412x915 (Playwright) : 88 pièces mappées, 0 erreur console, ~114 draw calls, ~7 800 triangles. Fps réel du S20 non mesuré (la box rend en logiciel).
 - Prochaines étapes : test QA sur le S20, musique, teaser de Rendu.
+
+## v0.4 — vrais effets sonores (11 nov. 2026)
+- Le son de synthèse (oscillateurs) est remplacé par 10 fichiers dans `assets/sfx/` : Ogg Opus mono 64 kb/s (Chrome, Android, Firefox), avec un repli .mp3 que la page choisit seulement si le navigateur ne lit pas l'Opus (anciens Safari).
+- Lecture en Web Audio (AudioContext, decodeAudioData, un GainNode par son, boucles AudioBufferSourceNode.loop avec loopEnd exact). Téléchargement paresseux 1,5 s après l'affichage, décodage au premier toucher ; un son manquant est ignoré sans erreur. `window.__c204.sfx` liste les sons chargés, `window.__c204.audio` donne l'état.
+- Ambiance `amb_hum` (boucle 4,5 s) : discrète au repos (0,16), elle monte à chaque étape de Démarrer (jusqu'à 0,62) puis redescend. `spin_loop` suit la vitesse des rotors, `field_loop` suit le niveau du champ (aussi avec le bouton Champ).
+- Effets : clic (boutons, levier), `lid_open` (début de Démarrer), `tick` (compte à rebours, plus aigu à 1), `jump` (décharge puis souffle), `explode` (Éclatée, aller et retour plus grave), `beep_soft` (fiches, visite, étapes), `abort` (arrêt d'urgence).
+- Bouton 🔊/🔇 en haut à côté du plein écran ; l'état est gardé dans localStorage (`c204-muted`).
+- Poids : .ogg 260 Ko au total, .mp3 204 Ko, dossier entier 468 Ko (< 1,5 Mo).
+- Sources et licence : ElevenLabs Sound Effects n'a pas pu servir (générations gratuites occupées, rien n'a été facturé). Les sons sont donc montés à partir des packs Kenney « Sci-Fi Sounds », « Interface Sounds » et « Impact Sounds » (kenney.nl, licence CC0 1.0, domaine public). Le bourdonnement 60 Hz de l'ambiance est synthétisé par nous (CC0). Le script de montage est `tools/sfx_compose.py` (mixage numpy, boucles en fondu enchaîné).
+
+| Fichier | Poids (ogg / mp3) | Fait à partir de (Kenney, CC0) |
+|---|---|---|
+| amb_hum | 44 / 37 Ko | spaceEngineLow_004 + bourdonnement 60 Hz synthétisé |
+| spin_loop | 51 / 33 Ko | engineCircular_002 |
+| field_loop | 39 / 33 Ko | forceField_000-003 + spaceEngineLow_001 |
+| click | 7 / 5 Ko | switch_003 |
+| tick | 4 / 3 Ko | tick_004 + impactMetal_light_002 |
+| beep_soft | 3 / 3 Ko | confirmation_001 |
+| lid_open | 20 / 21 Ko | impactMetal_medium_001, switch_005, doorOpen_002, impactMetal_001, spaceEngineSmall_002 |
+| jump | 36 / 29 Ko | computerNoise_003, laserLarge_000-003, lowFrequency_explosion_000, thrusterFire_001 |
+| explode | 14 / 12 Ko | spaceEngineSmall_000, doorOpen_000, impactMetal_light_000-003, impactMetal_medium_003 |
+| abort | 32 / 20 Ko | error_007, spaceEngine_001 (ralenti) |

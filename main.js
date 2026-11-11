@@ -233,19 +233,63 @@ pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
 const parts = new THREE.Points(pGeo, new THREE.PointsMaterial({ color: 0xaee9ff, size: 0.03, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
 scene.add(parts);
 
-// ---------- son (Web Audio) ----------
-let ac, hum, humGain, hum2;
+// ---------- son (Web Audio : vrais effets dans assets/sfx, voir GAME.md) ----------
+const SFX_NAMES = ['amb_hum', 'spin_loop', 'field_loop', 'click', 'tick', 'beep_soft', 'lid_open', 'jump', 'explode', 'abort'];
+const LOOP_LEN = { amb_hum: 4.5, spin_loop: 4, field_loop: 4 }; // durée exacte des boucles (évite le bourrage des encodeurs)
+const SFX_EXT = (() => { try { return document.createElement('audio').canPlayType('audio/ogg; codecs="opus"') ? 'ogg' : 'mp3'; } catch { return 'mp3'; } })();
+const buf = {}, loops = {}, loopVol = { amb_hum: 0, spin_loop: 0, field_loop: 0 };
+let ac = null, master = null, muted = localStorage.getItem('c204-muted') === '1';
 function audio() {
-  if (ac) return; ac = new (window.AudioContext || window.webkitAudioContext)();
-  humGain = ac.createGain(); humGain.gain.value = 0; humGain.connect(ac.destination);
-  hum = ac.createOscillator(); hum.type = 'sawtooth'; hum.frequency.value = 40;
-  hum2 = ac.createOscillator(); hum2.type = 'sine'; hum2.frequency.value = 80;
-  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 600;
-  hum.connect(f); hum2.connect(f); f.connect(humGain); hum.start(); hum2.start();
+  if (!ac) {
+    try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
+    master = ac.createGain(); master.gain.value = muted ? 0 : 1; master.connect(ac.destination);
+    if (!running) loopVol.amb_hum = 0.16; // ambiance discrète au repos
+    SFX_NAMES.forEach(decodeSfx);
+  }
+  if (ac.state === 'suspended') ac.resume().catch(() => {});
 }
-function beep(freq = 880, d = 0.08, vol = 0.08) { if (!ac) return; const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = freq; g.gain.setValueAtTime(vol, ac.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + d); o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + d); }
-function whoosh() { if (!ac) return; const len = ac.sampleRate * 1.5, b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len); const s = ac.createBufferSource(); s.buffer = b; const g = ac.createGain(); g.gain.value = 0.4; s.connect(g).connect(ac.destination); s.start(); }
+// téléchargement paresseux (après l'affichage), décodage au premier toucher
+const raw = {}, pending = {};
+function fetchSfx(n) { return raw[n] ||= fetch(`assets/sfx/${n}.${SFX_EXT}`).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null); }
+setTimeout(() => SFX_NAMES.forEach(fetchSfx), 1500);
+async function decodeSfx(n) {
+  try {
+    const ab = await fetchSfx(n); if (!ab) return;
+    buf[n] = await new Promise((res, rej) => ac.decodeAudioData(ab.slice(0), res, rej));
+    if (n in loopVol) setLoop(n, loopVol[n], 0.4);
+    const p = pending[n]; delete pending[n]; if (p && performance.now() - p.t < 600) sfx(n, p.vol, p.rate); // joue un son demandé pendant le décodage
+  } catch { /* son manquant : on continue sans lui */ }
+}
+function startLoop(n) {
+  const b = buf[n]; if (!b) return null;
+  const s = ac.createBufferSource(); s.buffer = b; s.loop = true;
+  const off = SFX_EXT === 'mp3' ? 0.025 : 0; // délai d'encodeur mp3
+  s.loopStart = off; s.loopEnd = Math.min(off + LOOP_LEN[n], b.duration);
+  const g = ac.createGain(); g.gain.value = 0; s.connect(g).connect(master); s.start(0, off);
+  return loops[n] = { s, g, v: 0, r: 1 };
+}
+function setLoop(n, v, tc = 0.3) {
+  loopVol[n] = v; if (!ac) return;
+  const L = loops[n] || startLoop(n); if (!L) return;
+  L.v = v; L.g.gain.setTargetAtTime(v, ac.currentTime, tc);
+}
+function loopRate(n, r) { const L = loops[n]; if (L && Math.abs(L.r - r) > 0.01) { L.r = r; L.s.playbackRate.setTargetAtTime(r, ac.currentTime, 0.2); } }
+function sfx(n, vol = 1, rate = 1) {
+  if (!ac || muted) return;
+  if (!buf[n]) { pending[n] = { t: performance.now(), vol, rate }; return; }
+  const s = ac.createBufferSource(); s.buffer = buf[n]; s.playbackRate.value = rate;
+  const g = ac.createGain(); g.gain.value = vol; s.connect(g).connect(master); s.start();
+}
+function setMuted(m) {
+  muted = m; localStorage.setItem('c204-muted', m ? '1' : '0');
+  const b = $('#bMute'); b.textContent = m ? '🔇' : '🔊'; b.setAttribute('aria-label', m ? 'Remettre le son' : 'Couper le son'); b.classList.toggle('off', m);
+  if (ac) master.gain.setTargetAtTime(m ? 0 : 1, ac.currentTime, 0.05);
+}
+setMuted(muted);
+$('#bMute').onclick = () => { audio(); setMuted(!muted); };
 addEventListener('pointerdown', audio, { once: true });
+// clic sur chaque bouton de l'interface (sauf le bouton muet)
+document.addEventListener('click', e => { const b = e.target.closest('button'); if (b && b.id !== 'bMute') { audio(); sfx('click', 0.45); } }, true);
 
 // ---------- sélection / fiches ----------
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
@@ -255,8 +299,8 @@ function highlight(id) {
   if (!id) return;
   (groups[id] || []).forEach(g => g.traverse(o => { if (o.isMesh && o.material !== coreMat) { hiMat.set(o, o.material); const m = o.material.clone(); m.emissive = new THREE.Color(0x6a5200); m.emissiveIntensity = 1; o.material = m; } }));
 }
-function showPart(id, tourIdx) {
-  const p = PARTS[id]; if (!p) return; selected = id; highlight(id);
+function showPart(id, tourIdx, quiet) {
+  const p = PARTS[id]; if (!p) return; selected = id; highlight(id); if (!quiet) sfx('beep_soft', 0.5);
   $('#shRef').textContent = p.ref; $('#shTitle').textContent = p.fr; $('#shEn').textContent = p.en;
   $('#shBody').textContent = p.body; $('#shNote').textContent = p.note; $('#shNote').style.display = p.note ? '' : 'none';
   $('#tourNav').classList.toggle('hidden', tourIdx == null);
@@ -293,11 +337,11 @@ let tourIdx = null;
 $('#bTour').onclick = () => { tourIdx = 0; go(); };
 $('#tNext').onclick = () => { tourIdx = (tourIdx + 1) % TOUR.length; go(); };
 $('#tPrev').onclick = () => { tourIdx = (tourIdx - 1 + TOUR.length) % TOUR.length; go(); };
-function go() { const id = TOUR[tourIdx]; focusOn(id); showPart(id, tourIdx); beep(660, 0.05, 0.04); }
+function go() { const id = TOUR[tourIdx]; focusOn(id); showPart(id, tourIdx); }
 
 // vue éclatée
 let explode = 0, explodeTarget = 0;
-$('#bExplode').onclick = () => { explodeTarget = explodeTarget ? 0 : 1; camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: new THREE.Vector3(0, explodeTarget ? 0.45 : 0.2, 0), toP: explodeTarget ? new THREE.Vector3(1.7, 2.1, 2.3) : new THREE.Vector3(1.15, 1.45, 1.5) }; $('#bExplode').classList.toggle('on', !!explodeTarget); if (actions.explode) { const a = actions.explode; a.clampWhenFinished = true; a.setLoop(THREE.LoopOnce); a.timeScale = explodeTarget ? 1 : -1; a.paused = false; if (!a.isRunning()) { a.play(); if (!explodeTarget) a.time = a.getClip().duration; } } };
+$('#bExplode').onclick = () => { explodeTarget = explodeTarget ? 0 : 1; sfx('explode', 0.85, explodeTarget ? 1 : 0.85); camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: new THREE.Vector3(0, explodeTarget ? 0.45 : 0.2, 0), toP: explodeTarget ? new THREE.Vector3(1.7, 2.1, 2.3) : new THREE.Vector3(1.15, 1.45, 1.5) }; $('#bExplode').classList.toggle('on', !!explodeTarget); if (actions.explode) { const a = actions.explode; a.clampWhenFinished = true; a.setLoop(THREE.LoopOnce); a.timeScale = explodeTarget ? 1 : -1; a.paused = false; if (!a.isRunning()) { a.play(); if (!explodeTarget) a.time = a.getClip().duration; } } };
 $('#bField').onclick = () => { if (running) return; fieldTarget = fieldTarget ? 0 : 0.6; $('#bField').classList.toggle('on', !!fieldTarget); };
 
 // dossier
@@ -311,7 +355,7 @@ const wait = ms => new Promise((r, j) => { const t = setTimeout(() => abortFlag 
 $('#bStart').onclick = () => { if (running) return; $('#sheet').classList.add('hidden'); $('#dateBox').classList.remove('hidden'); };
 document.querySelectorAll('#dateBox .quick button').forEach(b => b.onclick = () => $('#dateIn').value = b.dataset.d);
 $('#bGo').onclick = () => { audio(); $('#dateBox').classList.add('hidden'); startSeq($('#dateIn').value || '1975-01-01'); };
-$('#bAbort').onclick = () => { abortFlag = true; beep(220, 0.4, 0.15); };
+$('#bAbort').onclick = () => { abortFlag = true; sfx('abort', 0.9); };
 function fmtDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' }); }
 async function startSeq(dest) {
   running = true; abortFlag = false; explodeTarget = 0; $('#bExplode').classList.remove('on');
@@ -319,26 +363,27 @@ async function startSeq(dest) {
   const ol = $('#stSteps'); ol.innerHTML = STEPS.map(s => `<li>${s[0]}</li>`).join('');
   $('#status').classList.remove('hidden'); $('#count').textContent = ''; $('#bAbort').classList.remove('hidden');
   if (rig?.lever) rig.lever.set ? rig.lever.set(true) : (rig.lever.rotation.x = 0.5);
+  sfx('click', 0.9, 0.85); sfx('lid_open', 0.9); // levier puis ouverture du couvercle
   if (actions.startup) { actions.idle?.fadeOut(0.3); const a = actions.startup.reset(); a.setLoop(THREE.LoopOnce); a.clampWhenFinished = true; a.play(); }
   try {
     for (let i = 0; i < STEPS.length; i++) {
-      const li = ol.children[i]; li.className = 'cur'; showPart(STEPS[i][1]); beep(500 + i * 90);
+      const li = ol.children[i]; li.className = 'cur'; showPart(STEPS[i][1], undefined, true); sfx('beep_soft', 0.4, 0.8 + i * 0.07);
       if (rig?.leds) rig.leds.forEach((l, k) => { if (k < (i + 1) * rig.leds.length / STEPS.length) l.material.emissive.setHex(0x33ff66); });
       if (i === 0 && rig?.scr) rig.scr.material.emissive.setHex(0x1aff88);
       if (i === 5) { rpmTarget = 1; actions.spin?.play(); }
       if (i === 7) { fieldTarget = 1; actions.field?.play(); }
-      if (ac) humGain.gain.setTargetAtTime(0.03 + i * 0.012, ac.currentTime, 0.3);
+      setLoop('amb_hum', 0.2 + i * 0.06, 0.4); // l'ambiance monte pendant la séquence
       await wait(i === 5 ? 2200 : 1300); li.className = 'done';
     }
     $('#sheet').classList.add('hidden'); highlight(null); overview();
-    for (let n = 5; n > 0; n--) { $('#count').textContent = n; beep(1000, 0.12, 0.1); await wait(1000); }
+    for (let n = 5; n > 0; n--) { $('#count').textContent = n; sfx('tick', 0.9, n === 1 ? 1.25 : 1); await wait(1000); }
     $('#count').textContent = 'SAUT';
     await jump(dest);
   } catch (e) {
     $('#count').textContent = 'ARRÊTÉ';
   }
   rpmTarget = 0; fieldTarget = 0; actions.spin?.fadeOut(1.5); actions.field?.fadeOut(1.5);
-  if (ac) humGain.gain.setTargetAtTime(0, ac.currentTime, 0.8);
+  setLoop('amb_hum', 0.16, 1.2); // puis redescend
   if (rig?.leds) rig.leds.forEach(l => l.material.emissive.setHex(0)); if (rig?.lever) rig.lever.set ? rig.lever.set(false) : (rig.lever.rotation.x = -0.5);
   if (rig?.scr) rig.scr.material.emissive.setHex(0x0a3a24);
   $('#bAbort').classList.add('hidden'); $('#bField').classList.remove('on');
@@ -347,14 +392,13 @@ async function startSeq(dest) {
 let jumpT = -1;
 async function jump(dest) {
   actions.jump?.reset().setLoop(THREE.LoopOnce).play();
-  whoosh(); if (ac) { hum.frequency.setTargetAtTime(160, ac.currentTime, 0.4); }
+  sfx('jump', 1);
   jumpT = 0; for (let i = 0; i < N; i++) { pPos.set([(Math.random() - .5) * 1.4, Math.random() * 0.5, (Math.random() - .5) * 0.6], i * 3); const a = Math.random() * 6.28; pVel.set([Math.cos(a) * 2, Math.random() * 2, Math.sin(a) * 2], i * 3); }
   await wait(1400);
   $('#flash').style.opacity = 1; await wait(350);
   machine.visible = false; (groups.case?.[0]?.parent && scene.children.includes(machine)) || 0;
   $('#flash').style.opacity = 0; await wait(1800);
   machine.visible = true; $('#flash').style.opacity = 0.8; await wait(200); $('#flash').style.opacity = 0;
-  if (ac) hum.frequency.setTargetAtTime(40, ac.currentTime, 0.5);
   $('#count').innerHTML = `<small style="font-size:13px">Arrivée simulée :</small><br>${fmtDate(dest)}`;
   jumpT = -1;
 }
@@ -380,7 +424,7 @@ renderer.setAnimationLoop(() => {
   fieldLevel += (fieldTarget - fieldLevel) * dt * 1.2;
   field.visible = fieldLevel > 0.02;
   if (field.visible) { shells.forEach((s, i) => { s.material.opacity = fieldLevel * (0.25 + 0.15 * Math.sin(t * 4 + i)); s.rotation.x = t * (0.3 + i * 0.2) * (i % 2 ? -1 : 1); }); inner.material.opacity = fieldLevel * 0.3; inner.rotation.x = t; field.scale.setScalar(0.6 + fieldLevel * 0.4); }
-  if (ac && hum) hum.frequency.setTargetAtTime(40 + rpm * 50, ac.currentTime, 0.2);
+  if (ac) { let sv = Math.min(0.55, rpm * 0.6), fv = Math.min(0.6, fieldLevel * 0.7); if (sv < 0.012) sv = 0; if (fv < 0.012) fv = 0; if (Math.abs((loops.spin_loop?.v ?? 0) - sv) > 0.01 || !loops.spin_loop) setLoop('spin_loop', sv, 0.15); if (Math.abs((loops.field_loop?.v ?? 0) - fv) > 0.01 || !loops.field_loop) setLoop('field_loop', fv, 0.15); loopRate('spin_loop', 0.7 + rpm * 0.5); loopRate('amb_hum', 1 + rpm * 0.12); }
   if (jumpT >= 0) { jumpT += dt; parts.material.opacity = Math.max(0, 1 - jumpT / 3); for (let i = 0; i < N * 3; i++) pPos[i] += pVel[i] * dt; pGeo.attributes.position.needsUpdate = true; } else parts.material.opacity = 0;
   if (mixer) mixer.update(dt);
   renderer.render(scene, camera);
@@ -391,4 +435,4 @@ if (demo === 'explode') $('#bExplode').click();
 if (demo === 'field') { rpmTarget = 1; fieldTarget = 1; }
 if (demo === 'tour') $('#bTour').click();
 if (demo === 'dossier') $('#bDossier').click();
-window.__c204 = { groups, PARTS, renderer };
+window.__c204 = { groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; } };
