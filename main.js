@@ -153,28 +153,60 @@ function buildProcedural() {
 let rig = buildProcedural();
 
 // ---------- branchement du GLB (quand Rendu & export le livre) ----------
-const NAME2ID = { housing: 'case', lid: 'lid', singularity_main: 'mainSing', singularity_steering: 'steerSing', field_coil: 'coils', mag_field_generator: 'magGen', electron_injector_manifold: 'injector', electron_regulator: 'eReg', electron_generator: 'eGen', motion_sensor: 'motion', cooling_housing: 'coolHousing', cooling_pump: 'pump', cooling_tank: 'tanks', gravity_sensor: 'gravSensor', battery_pack: 'battery', cesium_clock: 'clocks', control_computer: 'computers', emergency_view_screen: 'screen', emergency_disconnect: 'disconnect', main_switch: 'onoff', emergency_controls: 'emergency', remote_storage_unit: 'storage', remote_control_unit: 'remote', cable_remote: 'cable' };
-let mixer = null, actions = {};
-function idFor(name) { const n = name.toLowerCase().replace(/[._](\d+|l|r)$/,'').replace(/[._](\d+|l|r)$/,''); return NAME2ID[n] || Object.keys(NAME2ID).find(k => n.startsWith(k)) && NAME2ID[Object.keys(NAME2ID).find(k => n.startsWith(k))]; }
+const NAME2ID = { housing: 'case', gravity_sensor_unit: 'gravSensor', lid: 'lid', singularity_main: 'mainSing', singularity_steering: 'steerSing', field_coil: 'coils', mag_field_generator: 'magGen', electron_injector_manifold: 'injector', electron_regulator: 'eReg', electron_generator: 'eGen', motion_sensor: 'motion', cooling_housing: 'coolHousing', cooling_pump: 'pump', cooling_tank: 'tanks', gravity_sensor: 'gravSensor', battery_pack: 'battery', cesium_clock: 'clocks', control_computer: 'computers', emergency_view_screen: 'screen', emergency_disconnect: 'disconnect', main_switch: 'onoff', emergency_controls: 'emergency', remote_storage_unit: 'storage', remote_control_unit: 'remote', cable_remote: 'cable' };
+let mixer = null, actions = {}, glbRoot = null, fan = null;
+const KEYS = Object.keys(NAME2ID).sort((x, y) => y.length - x.length); // préfixe le plus long d'abord
+function idFor(name) { const n = (name || '').toLowerCase(); return KEYS.find(k => n === k || n.startsWith(k + '_')) && NAME2ID[KEYS.find(k => n === k || n.startsWith(k + '_'))]; }
 async function tryGLB() {
-  const url = 'assets/c204.glb';
-  try { const h = await fetch(url, { method: 'HEAD' }); if (!h.ok) return; } catch { return; }
+  let url = null; try { url = (await (await fetch('assets/model.json', { cache: 'no-store' })).json()).url; } catch { return; }
+  if (!url) return;
   const loader = new GLTFLoader();
   const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
   const ktx2 = new KTX2Loader().setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/basis/').detectSupport(renderer);
   loader.setDRACOLoader(draco).setKTX2Loader(ktx2).setMeshoptDecoder(MeshoptDecoder);
   loader.load(url, gltf => {
-    // remplace le modèle provisoire
-    scene.remove(machine); machine.traverse(o => { if (o.isMesh) { o.geometry.dispose(); } });
+    // remplace le modèle provisoire et libère sa mémoire
+    scene.remove(machine);
+    machine.traverse(o => { if (o.isMesh) { o.geometry.dispose(); } if (o.isSprite) o.material.dispose?.(); });
+    Object.values(M).forEach(m => { m.map?.dispose(); m.dispose(); });
     pickables.length = 0; for (const k in groups) delete groups[k]; explodeData.length = 0; singRot.length = 0;
-    const root = gltf.scene; scene.add(root);
-    root.traverse(o => { const id = idFor(o.name); if (id && !o.parent?.userData.part) reg(id, o, [0, 0.3 + Math.random() * 0.3, 0]); });
-    ['mainSing', 'steerSing'].forEach((id, i) => (groups[id] || []).forEach(g => singRot.push({ spin: g, dir: i ? -1 : 1, halo: null })));
+    const root = gltf.scene; glbRoot = root; machine.clear(); machine.add(root); scene.add(machine);
+    root.updateMatrixWorld(true);
+    const bbAll = new THREE.Box3().setFromObject(root), ctr = bbAll.getCenter(new THREE.Vector3());
+    const parts = []; root.traverse(o => { if (o !== root && o.parent && !o.parent.userData.part) { const id = idFor(o.name); if (id) parts.push([id, o]); } });
+    parts.forEach(([id, o]) => {
+      const c = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3());
+      const d = c.sub(ctr); d.y = 0; d.multiplyScalar(0.6);
+      reg(id, o, id === 'case' ? [0, 0, 0] : id === 'lid' ? [0, 0.35, -0.25] : [d.x, 0.18 + Math.abs(d.x) * 0.25, d.z]);
+    });
+    // couvercle ouvert pour voir l'intérieur (pivot = charnière arrière)
+    const lid = root.getObjectByName('lid'); if (lid) lid.rotation.x += -105 * Math.PI / 180;
+    // voyants, écran, levier
+    const leds = []; root.traverse(o => { if (o.isMesh && /^emergency_controls_led_\d+/.test(o.name)) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0); leds.push(o); } });
+    leds.sort((x, y) => x.name.localeCompare(y.name));
+    let scr = null; root.getObjectByName('emergency_view_screen')?.traverse(o => { if (o.isMesh && !scr) { o.material = o.material.clone(); scr = o; } });
+    const lever = root.getObjectByName('main_switch_lever');
+    rig = { leds, scr, lever: lever && { base: lever.rotation.x, set: on => lever.rotation.x = lever.userData.r0 + (on ? 0.9 : 0) } };
+    if (lever) lever.userData.r0 = lever.rotation.x;
+    fan = root.getObjectByName('cooling_fan_blades');
+    // rotors des singularités + halo lumineux au cœur
+    [['singularity_main', 1], ['singularity_steering', -1]].forEach(([n, dir]) => {
+      const rotor = root.getObjectByName(n + '_rotor'), core = root.getObjectByName(n + '_core');
+      let halo = null;
+      if (core) { halo = new THREE.Sprite(haloMat); halo.scale.setScalar(0.18); halo.raycast = () => {}; core.add(halo); }
+      if (rotor) singRot.push({ spin: rotor, dir, halo, axis: 'y' });
+    });
+    // champ et lumière centrés entre les deux singularités
+    const cm = root.getObjectByName('singularity_main_core'), cs = root.getObjectByName('singularity_steering_core');
+    if (cm && cs) { const pm = cm.getWorldPosition(new THREE.Vector3()), ps = cs.getWorldPosition(new THREE.Vector3()); field.position.copy(pm).add(ps).multiplyScalar(0.5); coreLight.position.copy(pm); }
+    else field.position.copy(ctr);
     mixer = new THREE.AnimationMixer(root);
     gltf.animations.forEach(c => actions[c.name] = mixer.clipAction(c));
-    actions.spin ||= actions.spin_singularities; actions.field ||= actions.field_pulse;
+    if (actions.spin_singularities) actions.spin ||= actions.spin_singularities; if (actions.field_pulse) actions.field ||= actions.field_pulse;
+    if (actions.spin || actions.lid_open) singRot.length = 0; // si l'animation fait tourner, on ne double pas
     actions.idle?.play();
-    console.log('GLB C204 chargé', Object.keys(actions));
+    console.log('GLB C204 chargé', url, parts.length, 'pièces', Object.keys(actions), bbAll.getSize(new THREE.Vector3()).toArray().map(v => v.toFixed(2)));
+    window.__c204.glb = { url, parts: parts.length, actions: Object.keys(actions) };
   }, undefined, e => console.warn('GLB non chargé', e));
 }
 tryGLB();
@@ -284,12 +316,12 @@ async function startSeq(dest) {
   $('#destTxt').textContent = fmtDate(dest);
   const ol = $('#stSteps'); ol.innerHTML = STEPS.map(s => `<li>${s[0]}</li>`).join('');
   $('#status').classList.remove('hidden'); $('#count').textContent = ''; $('#bAbort').classList.remove('hidden');
-  if (rig?.lever) rig.lever.rotation.x = 0.5;
+  if (rig?.lever) rig.lever.set ? rig.lever.set(true) : (rig.lever.rotation.x = 0.5);
   actions.startup?.reset().setLoop(THREE.LoopOnce).play();
   try {
     for (let i = 0; i < STEPS.length; i++) {
       const li = ol.children[i]; li.className = 'cur'; showPart(STEPS[i][1]); beep(500 + i * 90);
-      if (rig?.leds) rig.leds.forEach((l, k) => { if (k <= i) l.material.emissive.setHex(0x33ff66); });
+      if (rig?.leds) rig.leds.forEach((l, k) => { if (k < (i + 1) * rig.leds.length / STEPS.length) l.material.emissive.setHex(0x33ff66); });
       if (i === 0 && rig?.scr) rig.scr.material.emissive.setHex(0x1aff88);
       if (i === 5) { rpmTarget = 1; actions.spin?.play(); }
       if (i === 7) { fieldTarget = 1; actions.field?.play(); }
@@ -305,7 +337,7 @@ async function startSeq(dest) {
   }
   rpmTarget = 0; fieldTarget = 0; actions.spin?.fadeOut(1.5); actions.field?.fadeOut(1.5);
   if (ac) humGain.gain.setTargetAtTime(0, ac.currentTime, 0.8);
-  if (rig?.leds) rig.leds.forEach(l => l.material.emissive.setHex(0)); if (rig?.lever) rig.lever.rotation.x = -0.5;
+  if (rig?.leds) rig.leds.forEach(l => l.material.emissive.setHex(0)); if (rig?.lever) rig.lever.set ? rig.lever.set(false) : (rig.lever.rotation.x = -0.5);
   if (rig?.scr) rig.scr.material.emissive.setHex(0x0a3a24);
   $('#bAbort').classList.add('hidden'); $('#bField').classList.remove('on');
   setTimeout(() => { $('#status').classList.add('hidden'); running = false; }, 4000);
@@ -339,7 +371,8 @@ renderer.setAnimationLoop(() => {
   if (!mixer || !actions.explode) explodeData.forEach(e => e.obj.position.copy(e.base).addScaledVector(e.off, explode));
   rpm += (rpmTarget - rpm) * dt * 0.8;
   const spinSpeed = 0.6 + rpm * 40;
-  singRot.forEach(s => { s.spin.rotation.y += s.dir * spinSpeed * dt; s.spin.rotation.x = Math.sin(t * 3) * 0.2 * rpm; if (s.halo) { haloMat.opacity = 0.15 + rpm * 0.85; s.halo.scale.setScalar(0.18 + rpm * 0.12 + Math.sin(t * 20) * 0.01 * rpm); } });
+  singRot.forEach(s => { if (s.axis) s.spin.rotation[s.axis] += s.dir * spinSpeed * dt; else { s.spin.rotation.y += s.dir * spinSpeed * dt; s.spin.rotation.x = Math.sin(t * 3) * 0.2 * rpm; } if (s.halo) { haloMat.opacity = 0.15 + rpm * 0.85; s.halo.scale.setScalar(0.18 + rpm * 0.12 + Math.sin(t * 20) * 0.01 * rpm); } });
+  if (fan) fan.rotation.x += (1 + rpm * 25) * dt;
   coreLight.intensity = rpm * 3;
   $('#gRpm').style.width = (rpm * 100) + '%'; $('#gGrav').style.width = (fieldLevel * 100) + '%';
   fieldLevel += (fieldTarget - fieldLevel) * dt * 1.2;
