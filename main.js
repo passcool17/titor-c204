@@ -180,9 +180,11 @@ async function tryGLB() {
       reg(id, o, id === 'case' ? [0, 0, 0] : id === 'lid' ? [0, 0.35, -0.25] : [d.x, 0.18 + Math.abs(d.x) * 0.25, d.z]);
     });
     // couvercle ouvert pour voir l'intérieur (pivot = charnière arrière)
-    const lid = root.getObjectByName('lid'); if (lid) lid.rotation.x += -105 * Math.PI / 180;
+    const lid = root.getObjectByName('lid'); if (lid && !gltf.animations.length) lid.rotation.x += -105 * Math.PI / 180; // sans animations : on l'ouvre nous-mêmes
+    // boîtiers des singularités semi-transparents pour voir tourner rotors et cœurs
+    ['singularity_main_housing', 'singularity_steering_housing'].forEach(n => root.getObjectByName(n)?.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.28; o.material.depthWrite = false; } }));
     // voyants, écran, levier
-    const leds = []; root.traverse(o => { if (o.isMesh && /^emergency_controls_led_\d+/.test(o.name)) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0); leds.push(o); } });
+    const leds = []; root.traverse(o => { if (o.isMesh && /^emergency_controls_led_\d+/.test(o.name)) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0); o.material.emissiveIntensity = 3; o.scale.multiplyScalar(1.6); leds.push(o); } });
     leds.sort((x, y) => x.name.localeCompare(y.name));
     let scr = null; root.getObjectByName('emergency_view_screen')?.traverse(o => { if (o.isMesh && !scr) { o.material = o.material.clone(); scr = o; } });
     const lever = root.getObjectByName('main_switch_lever');
@@ -317,7 +319,7 @@ async function startSeq(dest) {
   const ol = $('#stSteps'); ol.innerHTML = STEPS.map(s => `<li>${s[0]}</li>`).join('');
   $('#status').classList.remove('hidden'); $('#count').textContent = ''; $('#bAbort').classList.remove('hidden');
   if (rig?.lever) rig.lever.set ? rig.lever.set(true) : (rig.lever.rotation.x = 0.5);
-  actions.startup?.reset().setLoop(THREE.LoopOnce).play();
+  if (actions.startup) { actions.idle?.fadeOut(0.3); const a = actions.startup.reset(); a.setLoop(THREE.LoopOnce); a.clampWhenFinished = true; a.play(); }
   try {
     for (let i = 0; i < STEPS.length; i++) {
       const li = ol.children[i]; li.className = 'cur'; showPart(STEPS[i][1]); beep(500 + i * 90);
