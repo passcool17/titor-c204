@@ -1,16 +1,16 @@
 # Machine C204 (John Titor) — page 3D interactive
 - Lien jouable : https://passcool17.github.io/titor-c204/
 - Dépôt : https://github.com/passcool17/titor-c204 (bot Arcade 3D)
-- État : v0.6 — scène Machine (GLB c204.glb) et scène Corvette 1967 (GLB corvette.glb v2), navigation #machine / #corvette.
-- Contrôles : glisser pour tourner, pincer pour zoomer, toucher une pièce = fiche. Boutons : Démarrer (choix de date, séquence 8 étapes, compte à rebours, saut simulé, arrêt d'urgence), Éclatée, Visite (22 pièces), Champ (sinusoïde de Tipler, p.5), Dossier (histoire, manuel, IBM 5100, prédictions, identité, physique, tableau Vérifié/Non vérifié).
-- Tests : `?demo=explode|field|tour|dossier`.
+- État : v0.7 — scène Machine (GLB c204.glb) et scène Corvette 1967 (GLB corvette.glb v2), navigation #machine / #corvette, panneau Pièces (bon de commande C204) et mode Étiquettes.
+- Contrôles : glisser pour tourner, pincer pour zoomer, toucher une pièce = fiche. Boutons : Démarrer (choix de date, séquence 8 étapes, compte à rebours, saut simulé, arrêt d'urgence), Éclatée, Visite (22 pièces), Champ (sinusoïde de Tipler, p.5), Dossier (histoire, manuel, IBM 5100, prédictions, identité, physique, tableau Vérifié/Non vérifié), Pièces (bon de commande des 20 pièces de l'unité, depuis les deux scènes), Étiquettes (numéros sur le modèle, scène Machine).
+- Tests : `?demo=explode|field|tour|dossier|pieces|labels`.
 - GLB attendu : objets nommés selon /workspace/projets/titor-c204/manuel/NOMS-OBJETS.md ; actions idle, startup, spin_singularities, field_pulse, jump, explode.
 ## Ressources
 - Pages du manuel (docs/manuel-p5..7.jpg) : Internet Archive « JohnTitorTimeMachineManual », documents publiés anonymement en 2000-2001, licence inconnue ; reproduction documentaire réduite.
 - Three.js (MIT) via jsDelivr. Sons : voir v0.4 (packs Kenney CC0). Textures faites en code.
 ## Prochaines étapes
-- Intégrer le GLB de la chaîne 3D (Modélisation → Rig → Rendu & export).
-- Option véhicule (Corvette 1967 / pick-up 4x4) ; musique d'ambiance ; test QA sur S20.
+- Test QA et mesure des fps / du son sur le S20 ; Safari et verrouillage d'orientation non testés.
+- Pièces n°7 et n°20 encore absentes du modèle 3D (voir v0.7).
 
 ## v0.2 — 11 nov. 2026
 - Vrai modèle branché : `assets/c204_static_preview.glb` (3D · Modélisation & textures puis 3D · Rendu & export GLB, d'après le manuel ; original, 132 Ko, 5 520 triangles, Draco + WebP). Le fichier chargé est choisi dans `assets/model.json`.
@@ -98,3 +98,40 @@ Référence lue : /workspace/assets3d/corvette-1967/references/grok-share-titor-
 - **Tests** : `/workspace/games3d/titor-c204-tests/t06.js` (Playwright + Chrome, tactile, 412x915 et 915x412), en local et en ligne.
 - **Limites connues** : capote repliée = forme simplifiée (3 coques rigides) ; Modélisation pourrait livrer une version corrigée, à brancher de la même façon (remplacer `assets/corvette.glb`). Le toucher au centre de l'habitacle donne la fiche Installation (zone élargie), la carrosserie se touche ailleurs. Son et fps à vérifier sur le S20 ; Safari non testé.
 - **Prochaines étapes** : test QA de la v0.6, mesure sur S20, éventuelle capote corrigée.
+
+## v0.7 — panneau Pièces C204 (11 nov. 2026)
+Demande : ajouter la liste des pièces de l'unité, d'après `/workspace/games3d/titor-c204-docs/bon-de-commande-C204.txt` (PDF à côté).
+- **Panneau « Pièces »** : ouvable par le bouton **Pièces** dans l'en-tête (scènes Machine et Corvette) et, dans la voiture, par le bouton « Liste des pièces de la C204 » de la fiche Installation. Liste déroulante des 20 pièces (N°, désignation FR + EN, quantité, notes) plus les 4 notes importantes et les métadonnées du document (référence BC-C204-GE-001, date, objet, priorité, client, fournisseur). Texte assez grand, bouton ✕ de 44 px, pas de débordement horizontal, lisible en 412×915 et 915×412.
+- **Cadre factuel** : mention claire en tête du panneau et sur chaque fiche issue du bon de commande : « Selon le récit de John Titor — document fictif, non vérifié ». Le document est présenté comme une liste de référence d'après les messages et schémas de 2000-2001, non authentifiée.
+- **Surlignage requis** : toucher une pièce **présente sur le modèle** dans la liste ferme le panneau, passe à la scène Machine si besoin, cadre la pièce, la surligne (émission brève, matériaux clonés puis rendus) et affiche son numéro en étiquette d'écran (ex. « 12 »). La fiche montre le nom FR, le nom EN, la quantité et la note du bon de commande. Toucher la même pièce sur le modèle, ou son numéro, ouvre la même fiche. Les pièces sans nœud visible restent dans la liste, marquées « Pas encore visible sur le modèle » : on peut quand même ouvrir leur fiche, sans inventer de correspondance.
+- **Mode Étiquettes** : bouton **Étiquettes** (marche/arrêt) dans l'en-tête, scène Machine seulement. Affiche tous les numéros des pièces mappées, en HTML de taille fixe, recalés par une seule passe de projection par image, uniquement quand le mode est allumé (ou pour la pièce sélectionnée). Pas de travail supplémentaire dans la boucle sinon. Les étiquettes sont enlevées en changeant de scène ou en lançant une séquence.
+- **Correspondance GLB** (`assets/c204.glb`, noms exacts) :
+
+| N° | Désignation | Nœuds utilisés | Visible |
+|---|---|---|---|
+| 1 | Logement d'entraînement de singularité | `singularity_main_housing`, `singularity_steering_housing` | oui |
+| 2 | Bobine de champ magnétique de singularité | `field_coil_main_1..3`, `field_coil_steering_1..3` | oui |
+| 3 | Générateur / régulateur de champ magnétique | `mag_field_generator_main`, `mag_field_generator_steering` | oui |
+| 4 | Collecteur d'injection de masse d'électrons | `electron_injector_manifold_main_nozzle`, `…_main_rail`, `…_steering_nozzle`, `…_steering_rail` | oui |
+| 5 | Régulateur d'électrons | `electron_regulator` | oui |
+| 6 | Générateur d'électrons | `electron_generator` | oui |
+| 7 | Capteur de singularité / rayon (Status / radius sensor) | — | **non** : aucun nœud « radius » / « status » ; `motion_sensor_*` est le capteur de *mouvement* du manuel (p.6 n°7), ce n'est pas une correspondance claire |
+| 8 | Logement de refroidissement de singularité | `cooling_housing_main`, `cooling_housing_steering` | oui |
+| 9 | Pompe de refroidissement de singularité | `cooling_pump` | oui (qté du document : 2 ; un seul nœud dans le GLB) |
+| 10 | Alimentation de refroidissement | `cooling_tank_1`, `cooling_tank_2` | oui |
+| 11 | Unité de capteur de gravité (VGL) | `gravity_sensor_unit`, `vgl_unit` | oui |
+| 12 | Horloge au césium | `cesium_clock_1`, `cesium_clock_2`, `cesium_clock_3` | oui (qté du document : 4 ; 3 nœuds dans le GLB) |
+| 13 | Unité informatique principale | `control_computer_1`, `control_computer_2` | oui (qté du document : 3 ; 2 nœuds dans le GLB) |
+| 14 | Système de ventilation / évacuation des rayons X | `housing_xray_vent_L`, `housing_xray_vent_R` | oui |
+| 15 | Alimentation batterie | `battery_pack`, `battery_pack_terminal_n`, `battery_pack_terminal_p` | oui |
+| 16 | Déconnexion d'urgence | `singularity_main_emergency_disconnect`, `singularity_steering_emergency_disconnect`, `emergency_disconnect` (bouton du pupitre) | oui |
+| 17 | Écran de vue d'urgence | `emergency_view_screen` | oui |
+| 18 | Unité de contrôle à distance | `remote_control_unit` | oui |
+| 19 | Ports de données / couplages | `cable_clock_data` | oui |
+| 20 | Pare-feu / protection radiations | — | **non** : aucun nœud « firewall » / « radiation » / « pare-feu » |
+
+- Les quantités et les textes restent ceux du document, même si le modèle a moins d'exemplaires (n°9, 12, 13). On n'ajoute pas de nœud manquant.
+- `vgl_unit` est aussi relié à la fiche existante « capteur de gravité ». Le toucher d'un évent (`housing_xray_vent_*`) ouvre la pièce n°14, pas la fiche du boîtier.
+- **Tests** : `/workspace/games3d/titor-c204-tests/t07.js` (Playwright + Chrome, tactile, 412×915 et 915×412), en local puis en ligne.
+- **Captures** : `/workspace/games3d/titor-c204-v07-pieces.png` (panneau ouvert), `titor-c204-v07-surlignage.png` (surlignage + n°), `titor-c204-v07-etiquettes.png` (mode Étiquettes allumé).
+- **Limites** : pièces 7 et 20 pas encore sur le modèle ; fps réel du S20 non mesuré (la box rend en logiciel) ; Safari non testé.

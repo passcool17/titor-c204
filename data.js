@@ -133,3 +133,45 @@ export const DOSSIER = `
 </table>
 <p class="small">Sources de départ : Internet Archive « John Titor Time Machine Manual » ; résumé de la conversation de Pascal. Ce dossier peut être complété.</p>
 `;
+
+// Bon de commande BC-C204-GE-001 — texte repris tel quel, sans pièce inventée.
+// « nodes » : noms du GLB c204.glb clairement correspondants (égalité ou préfixe + « _ »).
+export const BOM_META = {
+  titre: 'Army Model GE / C204 Gravity Distortion Time Displacement Unit',
+  ref: 'BC-C204-GE-001',
+  date: '11 novembre 2026',
+  objet: 'Approvisionnement des pièces principales de l\'unité C204',
+  priorite: 'Standard',
+  client: 'À compléter',
+  fournisseur: 'General Electric (ou équivalent)',
+  frame: 'Selon le récit de John Titor — document fictif, non vérifié',
+  footer: 'Document généré le 11 novembre 2026 — Basé sur les posts et schémas de John Titor (2000-2001)',
+};
+export const BOM_NOTES = [
+  'Les micro-singularités (dual top-spin, dual-positive) ne sont pas listées comme pièces détachées ordinaires : elles sont décrites comme produites en amont (CERN) et intégrées dans les logements magnétiques.',
+  'Le poids total de l\'unité complète est indiqué par Titor à environ 225–500 livres selon les posts.',
+  'Les quantités sont basées sur les descriptions et légendes des schémas postés en 2001 (Time Travel Institute / Art Bell forums).',
+  'Ce document est établi à des fins de référence documentaire uniquement, d\'après les éléments publiés par John Titor (TimeTravel_0) en 2000-2001.',
+];
+export const BOM = [
+  { n: 1, fr: 'Logement d\'entraînement de singularité', en: 'Singularity drive housing', qty: '2', notes: 'Principal + Steering', nodes: ['singularity_main_housing', 'singularity_steering_housing'], groups: ['mainSing', 'steerSing'] },
+  { n: 2, fr: 'Bobine de champ magnétique de singularité', en: 'Singularity magnetic field coil', qty: '2', notes: 'Contenu des micro-singularités', nodes: ['field_coil_main_1', 'field_coil_main_2', 'field_coil_main_3', 'field_coil_steering_1', 'field_coil_steering_2', 'field_coil_steering_3'], groups: ['coils'] },
+  { n: 3, fr: 'Générateur / régulateur de champ magnétique', en: 'Magnetic field generator/regulator', qty: '2', notes: 'Magnetic field generator/regulator', nodes: ['mag_field_generator_main', 'mag_field_generator_steering'], groups: ['magGen'] },
+  { n: 4, fr: 'Collecteur d\'injection de masse d\'électrons', en: 'Electron mass injection manifold', qty: '1', notes: 'Régulation de masse et gravité', nodes: ['electron_injector_manifold_main_nozzle', 'electron_injector_manifold_main_rail', 'electron_injector_manifold_steering_nozzle', 'electron_injector_manifold_steering_rail'], groups: ['injector'] },
+  { n: 5, fr: 'Régulateur d\'électrons', en: 'Electron regulator', qty: '1', notes: 'Electron regulator', nodes: ['electron_regulator'], groups: ['eReg'] },
+  { n: 6, fr: 'Générateur d\'électrons', en: 'Electron generator', qty: '1', notes: 'Electron generator', nodes: ['electron_generator'], groups: ['eGen'] },
+  { n: 7, fr: 'Capteur de singularité / rayon', en: 'Status / radius sensor', qty: '2', notes: 'Status / radius sensor', nodes: [], groups: [] },
+  { n: 8, fr: 'Logement de refroidissement de singularité', en: 'Singularity cooling housing', qty: '2', notes: 'Singularity cooling housing', nodes: ['cooling_housing_main', 'cooling_housing_steering'], groups: ['coolHousing'] },
+  { n: 9, fr: 'Pompe de refroidissement de singularité', en: 'Cooling pump', qty: '2', notes: 'Cooling pump', nodes: ['cooling_pump'], groups: ['pump'] },
+  { n: 10, fr: 'Alimentation de refroidissement', en: 'Cooling supply', qty: '1', notes: 'Cooling supply', nodes: ['cooling_tank_1', 'cooling_tank_2'], groups: ['tanks'] },
+  { n: 11, fr: 'Unité de capteur de gravité (VGL)', en: 'Gravity sensor unit / Variable Gravity Lock', qty: '1', notes: 'Variable Gravity Lock', nodes: ['gravity_sensor_unit', 'vgl_unit'], groups: ['gravSensor'] },
+  { n: 12, fr: 'Horloge au césium', en: 'Cesium clock', qty: '4', notes: 'Synchronisation temporelle principale', nodes: ['cesium_clock_1', 'cesium_clock_2', 'cesium_clock_3'], groups: ['clocks'] },
+  { n: 13, fr: 'Unité informatique principale', en: 'Computer units', qty: '3', notes: 'Computer units', nodes: ['control_computer_1', 'control_computer_2'], groups: ['computers'] },
+  { n: 14, fr: 'Système de ventilation / évacuation des rayons X', en: 'X-ray venting system', qty: '1', notes: 'X-ray venting system', nodes: ['housing_xray_vent_L', 'housing_xray_vent_R'], groups: [] },
+  { n: 15, fr: 'Alimentation batterie', en: 'Battery supply', qty: '1', notes: 'Battery supply', nodes: ['battery_pack', 'battery_pack_terminal_n', 'battery_pack_terminal_p'], groups: ['battery'] },
+  { n: 16, fr: 'Déconnexion d\'urgence', en: 'Emergency disconnect', qty: '2', notes: 'Emergency disconnect (par singularité)', nodes: ['singularity_main_emergency_disconnect', 'singularity_steering_emergency_disconnect', 'emergency_disconnect'], groups: ['disconnect'] },
+  { n: 17, fr: 'Écran de vue d\'urgence', en: 'Emergency view screen', qty: '1', notes: 'Emergency view screen', nodes: ['emergency_view_screen'], groups: ['screen'] },
+  { n: 18, fr: 'Unité de contrôle à distance', en: 'Remote control unit', qty: '1', notes: 'Remote control unit', nodes: ['remote_control_unit'], groups: ['remote'] },
+  { n: 19, fr: 'Ports de données / couplages', en: 'Data coupling for clocks & systems', qty: 'Lot', notes: 'Data coupling for clocks & systems', nodes: ['cable_clock_data'], groups: [] },
+  { n: 20, fr: 'Pare-feu / protection radiations', en: 'Radiation / Firewall', qty: '1', notes: 'Radiation / Firewall', nodes: [], groups: [] },
+];
