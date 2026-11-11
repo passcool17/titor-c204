@@ -59,3 +59,27 @@ Rapport : /workspace/qa/titor-c204/rapport-2026-11-11.md (v0.4, 7a160e7).
 - Défaut connu : la ligne d'aide est cachée pendant la séquence.
 - Version visible dans `window.__c204.version`, et `?v=0.4.1` ajouté sur main.js et style.css (cache).
 - Tests Playwright (playwright-core + Chrome de la box, tactile) en 412x915 et 915x412, script dans /workspace/games3d/titor-c204-tests/t041.js : chaque scénario de bug rejoué, 0 erreur, 0 avertissement.
+
+## v0.5 — scène « Corvette 1967 » (11 nov. 2026)
+Référence lue : /workspace/assets3d/corvette-1967/references/grok-share-titor-vehicules.md.
+- **Modèle provisoire procédural** (corvette.js, fait en code, sans fichier externe) : Corvette Sting Ray C2 cabriolet 1967 en low-poly, aux dimensions réelles (4,45 × 1,77 × 1,25 m, empattement 2,49 m). Pas de logo officiel. Objets nommés à part : `door_L`, `door_R`, `hood`, `trunk`, `soft_top` (arceaux `soft_top_bow_1..3` + toile), `steering_wheel`, `wheel_FL/FR/RL/RR` et `c204_unit`. Pivots sur les charnières (portes à l'avant, capot et coffre à l'arrière) et au centre des roues, avec X comme axe.
+- **C204 dans la voiture** : copie de assets/c204.glb fusionnée par matériau (peu de draw calls), à l'échelle (≈ 1,10 × 0,42 × 0,37 m). Elle est posée à l'arrière côté passager, couvercle ouvert, sur une plaque (`c204_mount`), avec un câble jusqu'au tableau de bord (`c204_cable`).
+- **assets/corvette.json** (`{"url": …}`) : `null` pour l'instant, donc le modèle procédural est utilisé. Avec un GLB, les noms sont associés aux fiches, y compris par préfixe (`soft_top_*`, `soft_top.*`). Les actions `idle`, `doors_open`, `top_down`, `hood_open`, `wheels_spin` et `jump` sont jouées si elles existent, sinon l'animation se fait en code. Si le GLB a son propre `c204_unit`, il est gardé.
+- **Navigation** : bouton 🚗 Corvette dans la scène Machine et ⚙ Machine dans la scène Corvette. Toucher la C204 dans la voiture ouvre la vue Machine. Le hash d'URL `#machine` / `#corvette` est ouvrable directement et suit le bouton Retour. On ne change pas de scène pendant une séquence. Chaque scène garde sa caméra et ses limites de zoom.
+- **Les deux scènes restent chargées** : la voiture n'est construite qu'à la première visite, en 164 ms. Seule la scène active est mise à jour et rendue. Mesure (Chrome, SwiftShader) : tas JS 13,8 Mo avec la Machine seule, 21,4 Mo avec les deux scènes, soit environ +8 Mo. Libérer la voiture en quittant la scène ne valait donc pas la reconstruction.
+- **Fiches touchables** : carrosserie, moteur, portes, capote, coffre, habitacle, roues, unité C204, installation (position, environ 100 kg, câblage) et voyage de 1975 (bouton ⓘ 1975). Chaque fiche sépare « Récit de Titor » (en doré) et « Faits vérifiés » (en vert). Toucher une roue la fait tourner.
+- **Saut depuis la voiture** : la voiture reste immobile, les feux s'allument, elle vibre (régime) et un champ l'entoure. Compte à rebours, puis flash, disparition et réapparition, avec les sons de la v0.4. ARRÊT D'URGENCE garde les garanties de la v0.4.1 : arrêt immédiat, et `endJump()` remet toujours la voiture visible, à l'échelle 1 (racine, groupe porteur et nœuds animés par l'échelle d'une action `jump` de GLB), le flash à 0 et les feux éteints.
+- **Mesures de la scène Corvette** (renderer.info) : 61 draw calls, 10 414 triangles (voiture : 24 maillages, 10 090 triangles). pixelRatio ≤ 2 inchangé. Le 60 i/s sur S20 n'a pas été mesuré sur l'appareil (la box tourne sur SwiftShader, environ 12 i/s, comme la scène Machine).
+- **Boutons** : 63×57 px en portrait et 147×44 px en paysage, tous touchables. Les contrôles de caméra sont les mêmes que dans la scène Machine.
+- **Tests** (/workspace/games3d/titor-c204-tests/t05.js, playwright-core et Chrome tactile, en 412x915 et 915x412) : aller-retour entre les scènes, toucher de la C204, fiches, portes, capote et capot, saut complet, arrêt pendant le saut. Résultat : 0 erreur, 0 avertissement.
+- **Encore provisoire** : la forme de la voiture est approximative (low-poly fait en code) et il n'y a pas encore de GLB ni de vraies actions animées. La position exacte de l'unité dans la voiture est une interprétation du récit.
+
+### Sources et licences (v0.5)
+| Élément | Source | Licence |
+|---|---|---|
+| Corvette procédurale (corvette.js) | faite en code pour ce projet | celle du projet (création originale) |
+| C204 dans la voiture | assets/c204.glb (chaîne 3D du projet) | celle du projet |
+| Sons | ceux de la v0.4 (Kenney) | CC0 |
+| Éclairage d'environnement | RoomEnvironment, three.js r170 | MIT |
+| Faits sur la Corvette 1967 (22 940 construites, dont 14 436 cabriolets, moteurs 327 et 427, L88, empattement de 98 po, 5 ouïes d'aile…) | Corvette Action Center (corvetteactioncenter.com), CorvSport (corvsport.com) | faits cités, textes réécrits |
+| Récit de Titor | messages publics de 2000-2001 (archives), via le fichier de référence ci-dessus | cité comme récit, non vérifié |

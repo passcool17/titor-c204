@@ -5,6 +5,8 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { PARTS, TOUR, STEPS, DOSSIER } from './data.js';
+import { CAR_PARTS, CAR_STEPS } from './data-car.js';
+import { createCorvette } from './corvette.js';
 
 const $ = s => document.querySelector(s);
 const canvas = $('#c');
@@ -157,20 +159,24 @@ const NAME2ID = { housing: 'case', gravity_sensor_unit: 'gravSensor', lid: 'lid'
 let mixer = null, actions = {}, glbRoot = null, fan = null;
 const KEYS = Object.keys(NAME2ID).sort((x, y) => y.length - x.length); // préfixe le plus long d'abord
 function idFor(name) { const n = (name || '').toLowerCase(); return KEYS.find(k => n === k || n.startsWith(k + '_')) && NAME2ID[KEYS.find(k => n === k || n.startsWith(k + '_'))]; }
+let draco = null, ktx2 = null;
+function makeLoader() { // un seul décodeur Draco/KTX2 partagé par les deux scènes
+  draco ||= new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
+  ktx2 ||= new KTX2Loader().setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/basis/').detectSupport(renderer);
+  return new GLTFLoader().setDRACOLoader(draco).setKTX2Loader(ktx2).setMeshoptDecoder(MeshoptDecoder);
+}
+let c204Resolve; const c204Ready = new Promise(r => c204Resolve = r); // GLB de la machine, réutilisé (copie fusionnée) dans la voiture
 async function tryGLB() {
-  let url = null; try { url = (await (await fetch('assets/model.json', { cache: 'no-store' })).json()).url; } catch { return; }
-  if (!url) return;
-  const loader = new GLTFLoader();
-  const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
-  const ktx2 = new KTX2Loader().setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/basis/').detectSupport(renderer);
-  loader.setDRACOLoader(draco).setKTX2Loader(ktx2).setMeshoptDecoder(MeshoptDecoder);
+  let url = null; try { url = (await (await fetch('assets/model.json', { cache: 'no-store' })).json()).url; } catch { return c204Resolve(null); }
+  if (!url) return c204Resolve(null);
+  const loader = makeLoader();
   loader.load(url, gltf => {
     // remplace le modèle provisoire et libère sa mémoire
     scene.remove(machine);
     machine.traverse(o => { if (o.isMesh) { o.geometry.dispose(); } if (o.isSprite) o.material.dispose?.(); });
     Object.values(M).forEach(m => { m.map?.dispose(); m.dispose(); });
     pickables.length = 0; for (const k in groups) delete groups[k]; explodeData.length = 0; singRot.length = 0;
-    const root = gltf.scene; glbRoot = root; machine.clear(); machine.add(root); scene.add(machine);
+    const root = gltf.scene; glbRoot = root; { const l = root.getObjectByName('lid'); if (l) l.userData.r0 = l.rotation.x; } machine.clear(); machine.add(root); scene.add(machine);
     root.updateMatrixWorld(true);
     const bbAll = new THREE.Box3().setFromObject(root), ctr = bbAll.getCenter(new THREE.Vector3());
     const parts = []; root.traverse(o => { if (o !== root && o.parent && !o.parent.userData.part) { const id = idFor(o.name); if (id) parts.push([id, o]); } });
@@ -211,7 +217,8 @@ async function tryGLB() {
     actions.idle?.play();
     console.log('GLB C204 chargé', url, parts.length, 'pièces', Object.keys(actions), bbAll.getSize(new THREE.Vector3()).toArray().map(v => v.toFixed(2)));
     window.__c204.glb = { url, parts: parts.length, actions: Object.keys(actions) };
-  }, undefined, e => console.warn('GLB non chargé', e));
+    c204Resolve(root);
+  }, undefined, e => { console.warn('GLB non chargé', e); c204Resolve(null); });
 }
 tryGLB();
 
@@ -302,14 +309,19 @@ document.addEventListener('click', e => { const b = e.target.closest('button'); 
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 let selected = null; const hiMat = new Map();
 function highlight(id) {
+  if (sceneId === 'corvette') return car?.highlight(id);
   hiMat.forEach((m, o) => o.material = m); hiMat.clear();
   if (!id) return;
   (groups[id] || []).forEach(g => g.traverse(o => { if (o.isMesh && o.material !== coreMat) { hiMat.set(o, o.material); const m = o.material.clone(); m.emissive = new THREE.Color(0x6a5200); m.emissiveIntensity = 1; o.material = m; } }));
 }
 function showPart(id, tourIdx, quiet) {
-  const p = PARTS[id]; if (!p) return; selected = id; highlight(id); if (!quiet) sfx('beep_soft', 0.5);
+  const p = (sceneId === 'corvette' ? CAR_PARTS : PARTS)[id]; if (!p) return; selected = id; highlight(id); if (!quiet) sfx('beep_soft', 0.5);
   $('#shRef').textContent = p.ref; $('#shTitle').textContent = p.fr; $('#shEn').textContent = p.en;
-  $('#shBody').textContent = p.body; $('#shNote').textContent = p.note; $('#shNote').style.display = p.note ? '' : 'none';
+  $('#shBody').textContent = p.body || ''; $('#shBody').style.display = p.body ? '' : 'none';
+  // « Récit de Titor » et « Faits vérifiés » toujours séparés
+  $('#shStory').classList.toggle('hidden', !p.story); $('#shStory p').textContent = p.story || '';
+  $('#shFacts').classList.toggle('hidden', !p.facts); $('#shFacts p').textContent = p.facts || '';
+  $('#shNote').textContent = p.note || ''; $('#shNote').style.display = p.note ? '' : 'none';
   $('#tourNav').classList.toggle('hidden', tourIdx == null);
   if (tourIdx != null) $('#tPos').textContent = `${tourIdx + 1} / ${TOUR.length}`;
   $('#sheet').classList.remove('hidden'); $('#dateBox').classList.add('hidden');
@@ -320,8 +332,14 @@ canvas.addEventListener('pointerup', e => {
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 8 || performance.now() - downAt[2] > 400) return;
   ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(ptr, camera);
-  const hit = ray.intersectObjects(pickables, false)[0];
   $('#hint').style.opacity = 0;
+  if (sceneId === 'corvette') {
+    const h = ray.intersectObjects(car.pickables, false)[0]; const id = h?.object.userData.card;
+    if (id === 'c204') { sfx('beep_soft', 0.5); location.hash = '#machine'; return; } // toucher la C204 ouvre la vue Machine
+    if (id) { if (id === 'wheels') car.spin(); focusOn(id); showPart(id); } else { $('#sheet').classList.add('hidden'); highlight(null); }
+    return;
+  }
+  const hit = ray.intersectObjects(pickables, false)[0];
   if (hit) { tourIdx = null; focusOn(hit.object.userData.part); showPart(hit.object.userData.part); }
   else { $('#sheet').classList.add('hidden'); highlight(null); }
 });
@@ -330,14 +348,14 @@ document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { if (b
 // caméra animée
 let camAnim = null;
 function focusOn(id) {
-  const objs = groups[id]; if (!objs) return;
+  const objs = (sceneId === 'corvette' ? car.groups : groups)[id]; if (!objs) return;
   const bb = new THREE.Box3(); objs.forEach(o => bb.expandByObject(o));
-  const c = bb.getCenter(new THREE.Vector3()); const s = Math.max(0.25, bb.getSize(new THREE.Vector3()).length());
+  const c = bb.getCenter(new THREE.Vector3()); const s = Math.min(sceneId === 'corvette' ? 2.2 : 9, Math.max(0.25, bb.getSize(new THREE.Vector3()).length()));
   const dir = camera.position.clone().sub(controls.target).normalize();
   if (dir.y < 0.35) { dir.y = 0.5; dir.normalize(); }
   camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: c, toP: c.clone().add(dir.multiplyScalar(s * 2.2 + 0.4)) };
 }
-function overview() { camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: new THREE.Vector3(0, 0.2, 0), toP: new THREE.Vector3(1.15, 1.45, 1.5) }; }
+function overview() { if (sceneId === 'corvette') return carOverview(); camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: new THREE.Vector3(0, 0.2, 0), toP: new THREE.Vector3(1.15, 1.45, 1.5) }; }
 
 // visite guidée
 let tourIdx = null;
@@ -379,7 +397,7 @@ $('#bGo').onclick = () => { audio(); $('#dateBox').classList.add('hidden'); star
 $('#bAbort').onclick = () => { if (abortFlag) return; abortFlag = true; abortWaits(); jumpSnd?.stop(); sfx('abort', 0.9); };
 function fmtDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' }); }
 async function startSeq(dest) {
-  running = true; abortFlag = false; $('#hint').classList.add('hidden'); closeDossier();
+  running = true; abortFlag = false; syncNav(); $('#hint').classList.add('hidden'); closeDossier();
   const wasExploded = explodeTarget > 0 || explode > 0.01 || !!actions.explode?.isScheduled();
   if (wasExploded) { setExplode(false, 2.5); sfx('explode', 0.7, 0.85); } // referme la vue éclatée (≈0,8 s) avant d'ouvrir le couvercle
   $('#destTxt').textContent = fmtDate(dest);
@@ -406,12 +424,79 @@ async function startSeq(dest) {
     $('#count').textContent = 'ARRÊTÉ';
     endJump(); // arrêt pendant le saut : la machine doit toujours revenir
   }
+  finishSeq();
+}
+function finishSeq() {
   rpmTarget = 0; fieldTarget = 0; actions.spin?.fadeOut(1.5); actions.field?.fadeOut(1.5);
   setLoop('amb_hum', 0.16, 1.2); // puis redescend
   if (rig?.leds) rig.leds.forEach(l => l.material.emissive.setHex(0)); if (rig?.lever) rig.lever.set ? rig.lever.set(false) : (rig.lever.rotation.x = -0.5);
   if (rig?.scr) rig.scr.material.emissive.setHex(0x0a3a24);
   $('#bAbort').classList.add('hidden'); $('#bField').classList.remove('on');
-  setTimeout(() => { $('#status').classList.add('hidden'); running = false; }, 4000);
+  car?.setLights(0); syncNav();
+  setTimeout(() => { $('#status').classList.add('hidden'); running = false; syncNav(); }, 4000);
+}
+
+// ---------- scène Corvette 1967 ----------
+let car = null, sceneId = 'machine';
+const camMem = { machine: { p: new THREE.Vector3(1.15, 1.45, 1.5), t: new THREE.Vector3(0, 0.2, 0) }, corvette: { p: new THREE.Vector3(-4.7, 5.3, -3.2), t: new THREE.Vector3(-0.1, 0.4, -0.25) } };
+const LIMITS = { machine: [0.5, 7], corvette: [1.4, 12] };
+function ensureCar() { if (!car) { const t0 = performance.now(); car = createCorvette({ renderer, makeLoader, c204Ready }); window.__c204.carBuildMs = Math.round(performance.now() - t0); } return car; }
+function carOverview() { camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: new THREE.Vector3(-0.1, 0.4, -0.25), toP: new THREE.Vector3(-4.7, 5.3, -3.2) }; }
+function syncNav() { ['#bToCar', '#bToMachine'].forEach(s => $(s).disabled = running); }
+function setScene(id) {
+  if (id === sceneId) return;
+  if (running) { history.replaceState(null, '', '#' + sceneId); return; } // pas de changement pendant une séquence
+  camMem[sceneId] = { p: camera.position.clone(), t: controls.target.clone() };
+  highlight(null); $('#sheet').classList.add('hidden'); $('#dateBox').classList.add('hidden'); closeDossier();
+  if (sceneId === 'machine' && explodeTarget) setExplode(false, 4);
+  sceneId = id; if (id === 'corvette') ensureCar();
+  document.body.dataset.scene = id;
+  $('#bar').classList.toggle('hidden', id !== 'machine'); $('#barCar').classList.toggle('hidden', id !== 'corvette');
+  $('#ttlMain').textContent = id === 'corvette' ? 'CORVETTE 1967 · C204' : 'ARMY MODEL GE / C204';
+  $('#ttlSub').textContent = id === 'corvette' ? 'Installation de l\'unité · reconstitution provisoire' : 'Gravity Distortion Time Displacement Unit · simulation';
+  $('#hint').textContent = id === 'corvette' ? 'Touche une pièce pour sa fiche · touche la C204 pour l\'ouvrir' : 'Touche une pièce pour sa fiche · glisse pour tourner · pince pour zoomer';
+  const m = camMem[id]; camera.position.copy(m.p); controls.target.copy(m.t); camAnim = null;
+  [controls.minDistance, controls.maxDistance] = LIMITS[id]; controls.update();
+}
+addEventListener('hashchange', () => setScene(location.hash === '#corvette' ? 'corvette' : 'machine'));
+$('#bToCar').onclick = () => { location.hash = '#corvette'; };
+$('#bToMachine').onclick = () => { location.hash = '#machine'; };
+const carBtn = (sel, what) => $(sel).onclick = () => { if (running) return; const on = car.toggle(what, !car.state[what]); $(sel).classList.toggle('on', what === 'top' ? !on : on); };
+carBtn('#bDoors', 'doors'); carBtn('#bTop', 'top'); carBtn('#bHood', 'hood');
+$('#bTrip').onclick = () => { tourIdx = null; showPart('trip'); };
+$('#bCarJump').onclick = () => startCarJump();
+async function startCarJump() {
+  if (running || !car) return;
+  running = true; abortFlag = false; syncNav(); $('#hint').classList.add('hidden'); highlight(null); $('#sheet').classList.add('hidden');
+  car.toggle('doors', false); car.toggle('hood', false); $('#bDoors').classList.remove('on'); $('#bHood').classList.remove('on');
+  $('#stTitle').textContent = 'SAUT DEPUIS LA CORVETTE'; $('#destTxt').textContent = '1975 (récit de Titor)';
+  const ol = $('#stSteps'); ol.innerHTML = CAR_STEPS.map(s => `<li>${s}</li>`).join('');
+  $('#status').classList.remove('hidden'); $('#count').textContent = ''; $('#bAbort').classList.remove('hidden');
+  sfx('click', 0.9, 0.85); carOverview();
+  try {
+    for (let i = 0; i < CAR_STEPS.length; i++) {
+      const li = ol.children[i]; li.className = 'cur'; sfx('beep_soft', 0.4, 0.8 + i * 0.09);
+      if (i === 1) car.setLights(1); // les feux s'allument
+      if (i === 3) rpmTarget = 1;
+      if (i === 4) fieldTarget = 1;
+      setLoop('amb_hum', 0.2 + i * 0.08, 0.4);
+      await wait(i === 3 ? 2000 : 1300); li.className = 'done';
+    }
+    for (let n = 5; n > 0; n--) { $('#count').textContent = n; sfx('tick', 0.9, n === 1 ? 1.25 : 1); await wait(1000); }
+    $('#count').textContent = 'SAUT';
+    car.startJump(); jumpSnd = sfx('jump', 1); // la voiture reste immobile et vibre
+    await wait(1400);
+    $('#flash').style.opacity = 1; await wait(350);
+    car.hide(); $('#flash').style.opacity = 0; await wait(1800);
+    car.show(); $('#flash').style.opacity = 0.8; await wait(200); $('#flash').style.opacity = 0;
+    car.endJump();
+    $('#count').innerHTML = '<small style="font-size:13px">Arrivée simulée :</small><br>1975';
+  } catch (e) {
+    $('#count').textContent = 'ARRÊTÉ';
+    $('#flash').style.opacity = 0; car.endJump(); // un arrêt remet toujours la voiture visible, à l'échelle 1
+  }
+  $('#stTitle').textContent = 'SÉQUENCE DE DÉMARRAGE';
+  finishSeq();
 }
 let jumpT = -1, jumpSnd = null;
 function endJump() {
@@ -443,6 +528,11 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   controls.update();
   if (camAnim) { camAnim.t = Math.min(1, camAnim.t + dt * 1.6); const k = 1 - Math.pow(1 - camAnim.t, 3); camera.position.lerpVectors(camAnim.fromP, camAnim.toP, k); controls.target.lerpVectors(camAnim.fromT, camAnim.toT, k); if (camAnim.t >= 1) camAnim = null; }
+  if (sceneId === 'corvette') {
+    rpm += (rpmTarget - rpm) * dt * 0.8; fieldLevel += (fieldTarget - fieldLevel) * dt * 1.2;
+    $('#gRpm').style.width = (rpm * 100) + '%'; $('#gGrav').style.width = (fieldLevel * 100) + '%';
+    car.update(dt, t, rpm, fieldLevel); updateLoops(); renderer.render(car.scene, camera); return;
+  }
   explode += (explodeTarget - explode) * Math.min(1, dt * 4);
   if (!mixer || !actions.explode) explodeData.forEach(e => e.obj.position.copy(e.base).addScaledVector(e.off, explode));
   rpm += (rpmTarget - rpm) * dt * 0.8;
@@ -454,15 +544,20 @@ renderer.setAnimationLoop(() => {
   fieldLevel += (fieldTarget - fieldLevel) * dt * 1.2;
   field.visible = fieldLevel > 0.02;
   if (field.visible) { shells.forEach((s, i) => { s.material.opacity = fieldLevel * (0.25 + 0.15 * Math.sin(t * 4 + i)); s.rotation.x = t * (0.3 + i * 0.2) * (i % 2 ? -1 : 1); }); inner.material.opacity = fieldLevel * 0.3; inner.rotation.x = t; field.scale.setScalar(0.6 + fieldLevel * 0.4); }
-  if (ac) { let sv = Math.min(0.55, rpm * 0.6), fv = Math.min(0.6, fieldLevel * 0.7); if (sv < 0.012) sv = 0; if (fv < 0.012) fv = 0; if (Math.abs((loops.spin_loop?.v ?? 0) - sv) > 0.01 || !loops.spin_loop) setLoop('spin_loop', sv, 0.15); if (Math.abs((loops.field_loop?.v ?? 0) - fv) > 0.01 || !loops.field_loop) setLoop('field_loop', fv, 0.15); loopRate('spin_loop', 0.7 + rpm * 0.5); loopRate('amb_hum', 1 + rpm * 0.12); }
+  updateLoops();
   if (jumpT >= 0) { jumpT += dt; parts.material.opacity = Math.max(0, 1 - jumpT / 3); for (let i = 0; i < N * 3; i++) pPos[i] += pVel[i] * dt; pGeo.attributes.position.needsUpdate = true; } else parts.material.opacity = 0;
   if (mixer) mixer.update(dt);
   renderer.render(scene, camera);
 });
+function updateLoops() {
+  if (ac) { let sv = Math.min(0.55, rpm * 0.6), fv = Math.min(0.6, fieldLevel * 0.7); if (sv < 0.012) sv = 0; if (fv < 0.012) fv = 0; if (Math.abs((loops.spin_loop?.v ?? 0) - sv) > 0.01 || !loops.spin_loop) setLoop('spin_loop', sv, 0.15); if (Math.abs((loops.field_loop?.v ?? 0) - fv) > 0.01 || !loops.field_loop) setLoop('field_loop', fv, 0.15); loopRate('spin_loop', 0.7 + rpm * 0.5); loopRate('amb_hum', 1 + rpm * 0.12); }
+}
 setTimeout(() => { const l = $('#loading'); l.style.opacity = 0; setTimeout(() => l.remove(), 700); }, 300);
 const demo = new URLSearchParams(location.search).get('demo');
 if (demo === 'explode') $('#bExplode').click();
 if (demo === 'field') { rpmTarget = 1; fieldTarget = 1; }
 if (demo === 'tour') $('#bTour').click();
 if (demo === 'dossier') $('#bDossier').click();
-window.__c204 = { version: '0.4.1', get machineVisible() { return machine.visible; }, get explode() { const a = actions.explode; return { target: explodeTarget, lerp: +explode.toFixed(3), time: a ? +a.time.toFixed(3) : null, active: a ? a.isScheduled() : false, paused: a ? a.paused : null }; }, groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; } };
+window.__c204 = { version: '0.5', camera, controls, screenOf(n) { const o = (sceneId === 'corvette' ? car.scene : scene).getObjectByName(n); if (!o) return null; const v = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, get scene() { return sceneId; }, get car() { return car && car.stats(); }, get render() { const i = renderer.info; return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, heapMB: performance.memory ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : null }; }, get machineVisible() { return machine.visible; }, get explode() { const a = actions.explode; return { target: explodeTarget, lerp: +explode.toFixed(3), time: a ? +a.time.toFixed(3) : null, active: a ? a.isScheduled() : false, paused: a ? a.paused : null }; }, groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; } };
+
+if (location.hash === '#corvette') setScene('corvette');

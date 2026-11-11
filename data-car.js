@@ -1,0 +1,35 @@
+// Fiches de la scène Corvette. « Récit de Titor » = ce qu'affirment ses messages de 2000-2001 ;
+// « Faits vérifiés » = données documentées (fiches techniques Chevrolet 1967 compilées par Corvette Action
+// Center et CorvSport, archives des messages). Aucune personne réelle n'est représentée.
+export const CAR_PARTS = {
+  body: { ref: 'Véhicule', fr: 'Chevrolet Corvette Sting Ray 1967 (C2), décapotable', en: '1967 Corvette Sting Ray convertible',
+    story: "Titor a écrit que l'unité C204 avait d'abord été installée dans une Corvette 1967 décapotable pour le voyage vers 1975 : une voiture d'époque qui n'attirerait pas l'attention, avec une suspension capable de porter le poids de l'unité.",
+    facts: "1967 est la dernière année de la 2e génération (C2, 1963-1967). Production 1967 : 22 940 voitures, dont 14 436 décapotables et 8 504 coupés. Empattement 98 po (2,49 m), longueur 175,1 po (4,45 m), largeur 69,6 po (1,77 m). Carrosserie en fibre de verre. Aucune Corvette n'a été identifiée de façon vérifiable comme celle du récit.",
+    note: "Modèle 3D provisoire fait en code, aux dimensions réelles, sans logo ; le vrai modèle viendra de la chaîne 3D." },
+  engine: { ref: 'Capot', fr: 'Moteur V8 (sous le capot)', en: 'Small-block 327 / big-block 427 V8',
+    story: "Le récit ne précise pas quel moteur avait la voiture.",
+    facts: "En 1967 : V8 327 po³ (5,4 L) de 300 ou 350 ch, ou V8 427 po³ (7,0 L) de 390, 400 ou 435 ch (Tri-Power pour les deux derniers). La L88 (427, 430 ch annoncés) n'a été produite qu'à 20 exemplaires. Boîte 3 vitesses de série, 4 vitesses Muncie ou Powerglide en option." },
+  doors: { ref: 'Portes', fr: 'Portes et habitacle 2 places', en: 'Doors, two-seat cockpit',
+    story: "Selon les photos postées par Titor, le matériel était installé dans l'habitacle, du côté passager.",
+    facts: "Biplace. En 1967, le frein à main passe entre les sièges et la poignée passager au-dessus de la boîte à gants disparaît. Nouveauté 1967 : cinq ouïes verticales derrière les roues avant." },
+  top: { ref: 'Capote', fr: 'Capote souple', en: 'Soft top',
+    story: "Le récit ne parle pas de la capote.",
+    facts: "La décapotable était livrée avec une capote souple ; un toit rigide amovible était proposé en option (6 880 commandés en 1967)." },
+  deck: { ref: 'Couvercle arrière', fr: 'Couvercle de rangement de la capote', en: 'Convertible top deck lid',
+    story: "Le récit ne parle pas de ce couvercle.",
+    facts: "Les Corvette 1963-1967 n'ont pas de couvercle de coffre extérieur ; sur la décapotable, le couvercle derrière les sièges cache la capote repliée. Dans le modèle 3D, il porte le nom « trunk »." },
+  cockpit: { ref: 'Poste de conduite', fr: 'Volant et tableau de bord', en: 'Steering wheel, dashboard',
+    story: "Titor décrit une machine qui se déplace dans le temps, pas dans l'espace : la voiture reste immobile pendant le saut.",
+    facts: "Options 1967 : colonne de direction télescopique (2 415 voitures), direction assistée (5 747). Conduite à gauche (modèle nord-américain)." },
+  wheels: { ref: 'Roues', fr: 'Roues Rally 15 po et freins à disque', en: 'Rally wheels, four-wheel discs',
+    story: "Titor voulait un véhicule dont la suspension supporte environ 100 kg de matériel en plus.",
+    facts: "Jantes Rally en acier 15 x 6 po, nouvelles en 1967, pneus 7,75 x 15. Freins à disque aux quatre roues et suspension arrière indépendante." },
+  install: { ref: 'Installation', fr: 'Installation de la C204 dans la voiture', en: 'C204 unit installation',
+    story: "Unité d'environ 225 lb (environ 100 kg) montée à l'arrière, côté passager. Les photos postées montrent des boîtiers, des panneaux de contrôle et des câbles dans l'habitacle.",
+    facts: "Ces photos sont des scans basse résolution de 2001, jamais authentifiés de façon indépendante ; elles ne permettent pas d'identifier formellement le modèle de voiture. Ici, la position, la fixation (plaque) et le câble vers le tableau de bord sont une reconstitution visuelle. 100 kg, c'est environ 7 % du poids d'une Corvette 1967 (environ 1 430 kg).",
+    note: "Touche la C204 pour ouvrir la vue Machine." },
+  trip: { ref: 'Voyage', fr: 'Le voyage vers 1975', en: 'The 1975 trip',
+    story: "Mission vers 1975 pour récupérer un ordinateur IBM 5100, puis arrêt en 2000 « pour raisons personnelles ». L'unité aurait ensuite été transférée dans un pick-up 4x4 de 1987.",
+    facts: "Les messages de 2000-2001 existent et sont archivés (Time Travel Institute, Internet Archive). L'IBM 5100 a été commercialisé en 1975 ; sa capacité d'émulation System/360-370 a été confirmée par un ingénieur de l'équipe d'origine. Aucune preuve matérielle du voyage n'existe, et aucune des grandes prédictions du récit ne s'est réalisée." },
+};
+export const CAR_STEPS = ['Voiture immobile, moteur coupé', 'C204 sous tension (câble au tableau de bord)', 'Synchronisation des horloges', 'Rotation des singularités', 'Champ autour de la voiture'];

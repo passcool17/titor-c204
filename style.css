@@ -12,10 +12,10 @@ button:active{transform:scale(.97)}
 .ico{pointer-events:auto;width:44px;height:44px;padding:0;font-size:20px}
 .ico.off{opacity:.6}
 #hint{position:fixed;top:64px;left:0;right:0;text-align:center;font-size:12px;opacity:.7;pointer-events:none;transition:opacity 1s}
-#bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:6px;padding:8px 8px calc(env(safe-area-inset-bottom) + 8px);background:linear-gradient(#05080c00,#05080cf2 35%)}
-#bar button{flex:1;display:flex;flex-direction:column;align-items:center;font-size:18px;padding:6px 2px}
-#bar button span{font-size:11px;margin-top:2px}
-#bar button.on{background:#2a3a10;border-color:#c9e85a}
+#bar,#barCar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:6px;padding:8px 8px calc(env(safe-area-inset-bottom) + 8px);background:linear-gradient(#05080c00,#05080cf2 35%)}
+#bar button,#barCar button{flex:1;display:flex;flex-direction:column;align-items:center;font-size:18px;padding:6px 2px}
+#bar button span,#barCar button span{font-size:11px;margin-top:2px}
+#bar button.on,#barCar button.on{background:#2a3a10;border-color:#c9e85a}
 #sheet,#dateBox{position:fixed;left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom) + 74px);max-height:46vh;overflow:auto;background:#0b131bf2;border:1px solid #2f4352;border-radius:14px;padding:14px 14px 12px;backdrop-filter:blur(6px)}
 #sheet h2,#dateBox h2{font-size:17px;color:#ffd75a;margin:2px 44px 4px 0}
 #shRef{font-size:11px;color:#29c99a;letter-spacing:.05em}
@@ -44,7 +44,7 @@ button:active{transform:scale(.97)}
 #dossier{position:fixed;z-index:50;inset:0;background:#05080cf5;overflow:auto;-webkit-overflow-scrolling:touch}
 #dossier .inner{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 96px);position:relative}
 #dossier .close{position:fixed;z-index:51;top:calc(env(safe-area-inset-top) + 8px);right:max(10px,calc(50vw - 352px));background:#16212bf2}
-body.dos-open #bar,body.dos-open #top{pointer-events:none!important;visibility:hidden}
+body.dos-open #bar,body.dos-open #barCar,body.dos-open #top{pointer-events:none!important;visibility:hidden}
 #dossier h1{font-size:20px;color:#ffd75a;margin:0 40px 6px 0}
 #dossier h3{font-size:15px;color:#29c99a;margin:18px 0 6px}
 #dossier p,#dossier li{margin-bottom:6px}#dossier ul{padding-left:18px}
@@ -66,7 +66,15 @@ body.dos-open #bar,body.dos-open #top{pointer-events:none!important;visibility:h
   #count{font-size:24px}
   #sheet,#dateBox{left:auto;right:8px;width:min(440px,calc(100vw - min(300px,38vw) - 32px));top:56px;bottom:calc(env(safe-area-inset-bottom) + 70px);max-height:none}
   #bar{padding-top:4px;padding-bottom:calc(env(safe-area-inset-bottom) + 4px)}
-  #bar button{flex-direction:row;justify-content:center;gap:6px;min-height:44px}
-  #bar button span{margin-top:0}
+  #bar button,#barCar button{flex-direction:row;justify-content:center;gap:6px;min-height:44px}
+  #bar button span,#barCar button span{margin-top:0}
 }
 #bAbort{position:sticky;bottom:0}
+#bar,#barCar{gap:4px;padding-left:6px;padding-right:6px}
+#bar button,#barCar button{min-width:44px;min-height:44px}
+#bar button:disabled,#barCar button:disabled{opacity:.4}
+#shStory,#shFacts{margin:6px 0;padding:6px 8px;border-radius:8px}
+#shStory{background:#2a210a;border-left:3px solid #ffd75a}#shFacts{background:#0c2a20;border-left:3px solid #29c99a}
+#shStory h4,#shFacts h4{font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+#shStory h4{color:#ffd75a}#shFacts h4{color:#5cf0a8}
+@media (orientation:landscape) and (max-height:520px){#bar button,#barCar button{flex-direction:row;justify-content:center;gap:6px;min-height:44px}#bar button span,#barCar button span{margin-top:0}#barCar{padding-top:4px;padding-bottom:calc(env(safe-area-inset-bottom) + 4px)}}
