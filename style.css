@@ -46,7 +46,7 @@ button:active{transform:scale(.97)}
 #dossier{position:fixed;z-index:50;inset:0;background:#05080cf5;overflow:auto;-webkit-overflow-scrolling:touch}
 #dossier .inner{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 96px);position:relative}
 #dossier .close{position:fixed;z-index:51;top:calc(env(safe-area-inset-top) + 8px);right:max(10px,calc(50vw - 352px));background:#16212bf2}
-body.dos-open #bar,body.dos-open #barCar,body.dos-open #top{pointer-events:none!important;visibility:hidden}
+body.dos-open #bar,body.dos-open #barCar,body.dos-open #top,body.dos-open #distLabels{pointer-events:none!important;visibility:hidden}
 #dossier h1{font-size:20px;color:#ffd75a;margin:0 40px 6px 0}
 #dossier h3{font-size:15px;color:#29c99a;margin:18px 0 6px}
 #dossier p,#dossier li{margin-bottom:6px}#dossier ul{padding-left:18px}
@@ -95,7 +95,7 @@ body[data-scene="corvette"] #bLabels{display:none}
 #parts{position:fixed;z-index:50;inset:0;background:#05080cf5;overflow:auto;-webkit-overflow-scrolling:touch;overflow-x:hidden}
 #parts .inner{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 24px);position:relative}
 #parts .close{position:fixed;z-index:51;top:calc(env(safe-area-inset-top) + 8px);right:max(10px,calc(50vw - 352px));background:#16212bf2}
-body.parts-open #bar,body.parts-open #barCar,body.parts-open #top,body.parts-open #labels{pointer-events:none!important;visibility:hidden}
+body.parts-open #bar,body.parts-open #barCar,body.parts-open #top,body.parts-open #labels,body.parts-open #distLabels{pointer-events:none!important;visibility:hidden}
 #parts h1{font-size:20px;color:#ffd75a;margin:0 48px 8px 0;line-height:1.25}
 #parts h3{font-size:15px;color:#29c99a;margin:18px 0 8px}
 #parts .parts-frame{font-size:14px;color:#ffd75a;background:#2a210a;border-left:3px solid #ffd75a;border-radius:8px;padding:8px 10px;margin:0 0 10px}
@@ -126,4 +126,20 @@ body.parts-open #bar,body.parts-open #barCar,body.parts-open #top,body.parts-ope
 @media (orientation:landscape) and (max-height:520px){
   #top .txt{font-size:11px;padding:0 6px}
   #parts .inner{padding-left:12px;padding-right:12px}
+}
+
+#shTech{margin:6px 0;padding:6px 8px;border-radius:8px;background:#0c1a2a;border-left:3px solid #7fd3ff}
+#shTech h4{font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px;color:#7fd3ff}
+#shTech p{font-size:14px;overflow-wrap:anywhere}
+#parts .specs{display:flex;flex-direction:column;gap:8px;margin:8px 0 12px}
+#parts .spec{padding:10px 12px;border-radius:12px;background:#0b131bf2;border:1px solid #2f4352;overflow-wrap:anywhere}
+#parts .spec .fr{font-size:15px;color:#7fd3ff;font-weight:700;margin-bottom:4px}
+#parts .spec .bd{font-size:14px}
+#parts .dist-btn{display:block;width:100%;min-height:44px;margin:8px 0;font-weight:700}
+#parts .dist-btn.on{background:#2a3a10;border-color:#c9e85a;color:#e8f7a0}
+#distLabels{position:fixed;inset:0;z-index:9;pointer-events:none;overflow:hidden}
+#distLabels span{position:absolute;left:0;top:0;transform:translate(-50%,-50%);background:#0b131bee;color:#ffd75a;border:1px solid #ffd75a88;border-radius:8px;padding:4px 7px;font:700 11px/1.2 system-ui,sans-serif;white-space:nowrap;max-width:46vw;overflow:hidden;text-overflow:ellipsis}
+#distLabels span.off{display:none}
+@media (max-width:640px){
+  #top .txt{padding:0 6px;font-size:11px}
 }

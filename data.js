@@ -175,3 +175,44 @@ export const BOM = [
   { n: 19, fr: 'Ports de données / couplages', en: 'Data coupling for clocks & systems', qty: 'Lot', notes: 'Data coupling for clocks & systems', nodes: ['cable_clock_data'], groups: [] },
   { n: 20, fr: 'Pare-feu / protection radiations', en: 'Radiation / Firewall', qty: '1', notes: 'Radiation / Firewall', nodes: [], groups: [] },
 ];
+
+// Détails techniques : /workspace/games3d/titor-c204-docs/pieces-C204-details.txt (BC-C204-GE-001-DT).
+// Textes repris tels quels. Les n° groupés dans le document (1-2, 5-6, 8-10) reçoivent la même donnée.
+// Pas de donnée inventée : les pièces absentes de cette liste n'ont pas de champ « Donnée technique ».
+export const PART_TECH = {
+  1: 'Contiennent les 2 micro-singularités top-spin dual-positive. Source d\'énergie principale (CERN).',
+  2: 'Contiennent les 2 micro-singularités top-spin dual-positive. Source d\'énergie principale (CERN).',
+  3: 'Maintient le confinement magnétique des singularités.',
+  4: 'Injecte des électrons pour modifier la masse et la gravité des singularités. Point de défaillance fréquent selon Titor.',
+  5: 'Alimentent le manifold d\'injection.',
+  6: 'Alimentent le manifold d\'injection.',
+  7: 'Surveillance de l\'état des singularités.',
+  8: 'Refroidissement des singularités + évacuation des rayons X (X-ray venting).',
+  9: 'Refroidissement des singularités + évacuation des rayons X (X-ray venting).',
+  10: 'Refroidissement des singularités + évacuation des rayons X (X-ray venting).',
+  11: 'Verrouillage et contrôle de la gravité variable. Travaille avec les ordinateurs pour le tracé de route.',
+  12: 'Unité de base = la seconde. Synchronisation et calcul de la divergence de worldline (~1-2 %). Le C206 utilise 6 horloges + système optique.',
+  13: 'Contrôlent le champ de distorsion, enregistrent le voyage, calculent le retour sur la worldline d\'origine. Interface avec le VGL.',
+  14: 'Évacuation des rayons X produits par les singularités.',
+  15: 'Alimentation électrique de secours / systèmes auxiliaires.',
+};
+export const UNIT_SPECS = {
+  ref: 'BC-C204-GE-001-DT',
+  date: '11 novembre 2026',
+  frame: 'Selon le récit de John Titor, non vérifié',
+  items: [
+    { fr: 'Poids total de l\'unité complète', body: 'Environ 225 livres (≈ 102 kg) selon certains posts ; jusqu\'à ≈ 500 livres (≈ 227 kg) dans d\'autres descriptions.' },
+    { fr: 'Vitesse de déplacement', body: '≈ 10 ans par heure à 100 % de puissance. Précision d\'environ 50-60 ans par saut.' },
+    { fr: 'Effet gravitationnel', body: 'À 100 % de puissance : traction pouvant atteindre ≈ 2 G près de l\'unité. Champ capable de courber un faisceau laser.' },
+    { fr: 'Distances de sécurité (schéma)', body: 'Distance verticale sûre : 6 m ; mass offset : 5 m ; rear mass dist. : 8 m ; forward mass dist. : 11 m.' },
+    { fr: 'Type de déplacement', body: 'Stationary mass unit : se déplace dans le temps, pas dans l\'espace. Véhicule stationnaire pendant le saut.' },
+  ],
+  safe: { vert: 6, offset: 5, rear: 8, front: 11 },
+};
+export const REF_NOTES = [
+  'Toutes les valeurs sont extraites des posts de John Titor (TimeTravel_0) entre novembre 2000 et mars 2001 et des légendes des schémas qu\'il a publiés.',
+  'Aucune spécification électrique (tension, ampérage, puissance en watts) ni dimension physique précise des sous-ensembles n\'a été fournie par Titor.',
+  'Les micro-singularités elles-mêmes ne sont pas des pièces détachées : elles sont produites en amont et confinées dans les logements magnétiques.',
+  'Document à des fins de référence uniquement, basé sur les déclarations publiées.',
+];
+export const REF_FOOTER = 'Généré le 11 novembre 2026 — Source : posts et schémas John Titor (2000-2001)';

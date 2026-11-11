@@ -4,9 +4,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { PARTS, TOUR, STEPS, DOSSIER, BOM, BOM_META, BOM_NOTES } from './data.js?v=0.7.1';
-import { CAR_PARTS, CAR_STEPS } from './data-car.js?v=0.7.1';
-import { createCorvette } from './corvette.js?v=0.7.1';
+import { PARTS, TOUR, STEPS, DOSSIER, BOM, BOM_META, BOM_NOTES, PART_TECH, UNIT_SPECS, REF_NOTES, REF_FOOTER } from './data.js?v=0.8';
+import { CAR_PARTS, CAR_STEPS } from './data-car.js?v=0.8';
+import { createCorvette } from './corvette.js?v=0.8';
 
 const $ = s => document.querySelector(s);
 const canvas = $('#c');
@@ -323,6 +323,7 @@ function showPart(id, tourIdx, quiet) {
   $('#shFacts').classList.toggle('hidden', !p.facts); $('#shFacts p').textContent = p.facts || '';
   $('#shNote').textContent = p.note || ''; $('#shNote').style.display = p.note ? '' : 'none';
   $('#shFrame').classList.add('hidden'); $('#shQty').classList.add('hidden');
+  $('#shTech').classList.add('hidden');
   $('#shToParts').classList.toggle('hidden', id !== 'install');
   $('#tourNav').classList.toggle('hidden', tourIdx == null);
   if (tourIdx != null) $('#tPos').textContent = `${tourIdx + 1} / ${TOUR.length}`;
@@ -466,6 +467,9 @@ function fillSheetBom(p) {
   $('#shStory').classList.add('hidden'); $('#shFacts').classList.add('hidden');
   $('#shFrame').textContent = BOM_META.frame; $('#shFrame').classList.remove('hidden');
   $('#shQty').textContent = 'Quantité : ' + p.qty; $('#shQty').classList.remove('hidden');
+  const tech = PART_TECH[p.n];
+  $('#shTech').classList.toggle('hidden', !tech);
+  $('#shTech p').textContent = tech || '';
   $('#shNote').textContent = p.notes || ''; $('#shNote').style.display = p.notes ? '' : 'none';
   $('#shToParts').classList.remove('hidden'); $('#shToParts').textContent = 'Liste des pièces de la C204';
   $('#tourNav').classList.add('hidden');
@@ -494,8 +498,11 @@ function buildParts() {
     return `<button type="button" class="bom-item${p.nodes.length ? '' : ' missing'}" data-bom="${p.n}"><div class="nr"><span class="n">N° ${p.n}</span><span class="q">Qté : ${p.qty}</span></div><div class="fr">${p.fr}</div><div class="en">${p.en}</div><div class="nt">${p.notes}</div>${vis}</button>`;
   }).join('');
   const notes = BOM_NOTES.map(s => `<li>${s}</li>`).join('');
-  $('#partsContent').innerHTML = `<h1>Pièces de l'unité C204</h1><p class="parts-frame">${m.frame}</p><p class="meta">${m.titre}</p>${meta}<div class="bom-list">${items}</div><h3>Notes importantes</h3><ul>${notes}</ul><p class="foot">${m.footer}</p>`;
+  const specs = UNIT_SPECS.items.map(s => `<div class="spec"><div class="fr">${s.fr}</div><div class="bd">${s.body}</div></div>`).join('');
+  const refs = REF_NOTES.map(s => `<li>${s}</li>`).join('');
+  $('#partsContent').innerHTML = `<h1>Pièces de l'unité C204</h1><p class="parts-frame">${m.frame}</p><p class="meta">${m.titre}</p>${meta}<div class="bom-list">${items}</div><h3 id="caracteristiques">Caractéristiques de l'unité</h3><p class="parts-frame">${UNIT_SPECS.frame}</p><p class="meta"><b>Référence</b> : ${UNIT_SPECS.ref} · <b>Date</b> : ${UNIT_SPECS.date}</p><div class="specs">${specs}</div><button type="button" class="dist-btn" data-dist-toggle aria-pressed="false">Distances de sécurité</button><p class="meta">Affiche autour de la Machine ou de la Corvette : 11 m à l'avant, 8 m à l'arrière, 5 m (mass offset) et 6 m à la verticale. Selon le récit de John Titor, non vérifié.</p><h3>Notes importantes</h3><ul>${notes}</ul><h3>Notes de référence</h3><ul class="ref-notes">${refs}</ul><p class="foot">${m.footer}</p><p class="foot">${REF_FOOTER}</p>`;
   $('#partsContent').querySelectorAll('[data-bom]').forEach(b => b.onclick = () => revealBom(+b.dataset.bom));
+  $('#partsContent').querySelectorAll('[data-dist-toggle]').forEach(b => b.onclick = () => { if (running) return; closeParts(); setDistances(!distOn); });
 }
 buildParts();
 function openParts() {
@@ -516,6 +523,125 @@ function setLabels(on) {
   ensureLabels();
   syncLabels();
 }
+
+// ---------- distances de sécurité (schéma Titor : 11 m avant, 8 m arrière, 5 m offset, 6 m vertical) ----------
+// Convention : avant = +Z, arrière = −Z, verticale = +Y, comme les GLB exportés (Machine et Corvette).
+// Les distances sont prises depuis le centre au sol de la Machine, ou le centre au sol de la boîte de la Corvette.
+const SAFE_M = UNIT_SPECS.safe; // { vert: 6, offset: 5, rear: 8, front: 11 }
+let distOn = false, distGroup = null, distCamSave = null, distFog = null;
+const _distV = new THREE.Vector3();
+function distOrigin() {
+  if (sceneId === 'corvette' && car?.bbox) {
+    const c = car.bbox.getCenter(new THREE.Vector3());
+    c.y = car.bbox.min.y;
+    return c;
+  }
+  return new THREE.Vector3(0, 0, 0);
+}
+function disposeDistGeom() {
+  if (distGroup) {
+    distGroup.removeFromParent();
+    distGroup.traverse(o => { o.geometry?.dispose?.(); if (o.material) { const m = o.material; Array.isArray(m) ? m.forEach(x => x.dispose()) : m.dispose(); } });
+    distGroup = null;
+  }
+  const box = $('#distLabels'); if (box) { box.innerHTML = ''; box.hidden = true; }
+}
+function syncDistButtons() {
+  $('#bDist').classList.toggle('on', distOn);
+  $('#bDist').setAttribute('aria-pressed', distOn ? 'true' : 'false');
+  document.querySelectorAll('[data-dist-toggle]').forEach(b => { b.classList.toggle('on', distOn); b.setAttribute('aria-pressed', distOn ? 'true' : 'false'); });
+}
+function setDistances(on) {
+  if (running && on) return;
+  on = !!on;
+  if (!on) {
+    distOn = false; syncDistButtons();
+    disposeDistGeom();
+    if (distFog && scene.fog) { scene.fog.near = distFog.near; scene.fog.far = distFog.far; distFog = null; }
+    if (distCamSave) {
+      const s = distCamSave; distCamSave = null;
+      [controls.minDistance, controls.maxDistance] = s.lim;
+      camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toP: s.p, toT: s.t };
+    }
+    return;
+  }
+  if (!distOn) distCamSave = { p: camera.position.clone(), t: controls.target.clone(), lim: [controls.minDistance, controls.maxDistance] };
+  distOn = true; syncDistButtons();
+  if (sceneId === 'corvette') ensureCar();
+  applyDistances(true);
+}
+function applyDistances(frame) {
+  disposeDistGeom();
+  if (!distOn) return;
+  const o = distOrigin();
+  const g = new THREE.Group(); g.name = 'c204_safety'; g.position.copy(o);
+  const gold = new THREE.MeshBasicMaterial({ color: 0xffd75a, side: THREE.DoubleSide, transparent: true, opacity: 0.92, depthWrite: false });
+  const cyan = new THREE.MeshBasicMaterial({ color: 0x7fd3ff, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false });
+  const ink = new THREE.MeshBasicMaterial({ color: 0x152028, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide });
+  if (scene.fog && !distFog) distFog = { near: scene.fog.near, far: scene.fog.far };
+  if (scene.fog) { scene.fog.near = 28; scene.fog.far = 90; }
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(12.5, 48), ink);
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.004; g.add(disc);
+  const grid = new THREE.GridHelper(24, 24, 0x5a7a4a, 0x243830); grid.position.y = 0.01; g.add(grid);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(SAFE_M.offset - 0.1, SAFE_M.offset + 0.1, 64), gold);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; g.add(ring);
+  const bar = (len, thick, mat) => new THREE.Mesh(new THREE.BoxGeometry(thick, thick, len), mat);
+  const frontBar = bar(SAFE_M.front, 0.12, gold); frontBar.position.set(0, 0.06, SAFE_M.front / 2); g.add(frontBar);
+  const rearBar = bar(SAFE_M.rear, 0.12, gold); rearBar.position.set(0, 0.06, -SAFE_M.rear / 2); g.add(rearBar);
+  const vertBar = new THREE.Mesh(new THREE.BoxGeometry(0.12, SAFE_M.vert, 0.12), cyan); vertBar.position.set(0, SAFE_M.vert / 2, 0); g.add(vertBar);
+  const tick = (z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 0.14), mat); m.position.set(0, 0.07, z); return m; };
+  g.add(tick(SAFE_M.front, gold)); g.add(tick(-SAFE_M.rear, gold));
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 0.9), cyan); cap.position.set(0, SAFE_M.vert, 0); g.add(cap);
+  distGroup = g;
+  (sceneId === 'corvette' ? car.scene : scene).add(g);
+  if (frame) frameDist(o);
+  buildDistLabels();
+  updateDistLabels();
+}
+function frameDist(o) {
+  const v = THREE.MathUtils.degToRad(camera.fov / 2), hAng = Math.atan(Math.tan(v) * camera.aspect);
+  const narrow = Math.min(v, hAng), wide = Math.max(v, hAng);
+  const dLong = (SAFE_M.front + SAFE_M.rear) / 2 + 1.4, dLat = SAFE_M.offset + 1.4;
+  const dist = Math.max(dLong / Math.sin(wide), dLat / Math.sin(narrow), (SAFE_M.vert + 1.2) / Math.sin(narrow)) * 1.05;
+  controls.maxDistance = Math.max(controls.maxDistance, dist * 1.4, 40);
+  // portrait : vue un peu de dessus et de l'arrière, pour que l'axe avant/arrière coure dans la hauteur de l'écran
+  const dir = innerHeight > innerWidth ? new THREE.Vector3(0.2, 1.2, -0.7).normalize() : new THREE.Vector3(0.95, 0.7, 0.15).normalize();
+  const target = o.clone(); target.y += 1.2; target.z += (SAFE_M.front - SAFE_M.rear) * 0.12;
+  camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: target, toP: target.clone().addScaledVector(dir, dist) };
+}
+function buildDistLabels() {
+  const box = $('#distLabels'); box.hidden = false; box.innerHTML = '';
+  [
+    ['front', '11 m avant'],
+    ['rear', '8 m arrière'],
+    ['offset', '5 m mass offset'],
+    ['vert', '6 m vertical'],
+  ].forEach(([id, text]) => {
+    const s = document.createElement('span'); s.dataset.k = id; s.textContent = text; box.appendChild(s);
+  });
+}
+function updateDistLabels() {
+  const box = $('#distLabels'); if (!distOn || !distGroup || box.hidden) return;
+  const o = distGroup.position, w = innerWidth, h = innerHeight;
+  const pts = {
+    front: [o.x, o.y + 0.15, o.z + SAFE_M.front],
+    rear: [o.x, o.y + 0.15, o.z - SAFE_M.rear],
+    offset: [o.x + SAFE_M.offset, o.y + 0.15, o.z],
+    vert: [o.x, o.y + SAFE_M.vert, o.z],
+  };
+  box.querySelectorAll('span').forEach(el => {
+    const p = pts[el.dataset.k]; if (!p) return;
+    _distV.set(p[0], p[1], p[2]).project(camera);
+    if (_distV.z < -1 || _distV.z > 1 || _distV.x < -1.2 || _distV.x > 1.2 || _distV.y < -1.2 || _distV.y > 1.2) { el.classList.add('off'); return; }
+    el.classList.remove('off');
+    el.style.transform = `translate(${((_distV.x + 1) / 2 * w).toFixed(1)}px, ${((1 - _distV.y) / 2 * h).toFixed(1)}px) translate(-50%,-50%)`;
+  });
+}
+function distStats() {
+  const labs = [...document.querySelectorAll('#distLabels span')].map(s => ({ k: s.dataset.k, text: s.textContent, hidden: s.classList.contains('off') || $('#distLabels').hidden }));
+  return { on: distOn, present: !!(distGroup && distGroup.parent), scene: sceneId, front: SAFE_M.front, rear: SAFE_M.rear, offset: SAFE_M.offset, vert: SAFE_M.vert, children: distGroup ? distGroup.children.length : 0, labels: labs };
+}
+$('#bDist').onclick = () => { if (running) return; setDistances(!distOn); };
 let labelEls = [], labelOverlap = 0, labelOverlapRaw = 0;
 const _labV = new THREE.Vector3(), _labBB = new THREE.Box3();
 const LAB_HIT = 44;
@@ -633,7 +759,7 @@ $('#bAbort').onclick = () => { if (abortFlag) return; abortFlag = true; abortWai
 function fmtDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' }); }
 async function startSeq(dest) {
   $('#stTitle').textContent = 'SÉQUENCE DE DÉMARRAGE';
-  running = true; abortFlag = false; syncNav(); $('#hint').classList.add('hidden'); closeDossier(); closeParts(); setLabels(false);
+  running = true; abortFlag = false; syncNav(); $('#hint').classList.add('hidden'); closeDossier(); closeParts(); setLabels(false); setDistances(false);
   const wasExploded = explodeTarget > 0 || explode > 0.01 || !!actions.explode?.isScheduled();
   if (wasExploded) { setExplode(false, 2.5); sfx('explode', 0.7, 0.85); } // referme la vue éclatée (≈0,8 s) avant d'ouvrir le couvercle
   $('#destTxt').textContent = fmtDate(dest);
@@ -697,7 +823,9 @@ function syncNav() { ['#bToCar', '#bToMachine'].forEach(s => $(s).disabled = run
 function setScene(id) {
   if (id === sceneId) return;
   if (running) { history.replaceState(null, '', '#' + sceneId); return; } // pas de changement pendant une séquence
-  camMem[sceneId] = { p: camera.position.clone(), t: controls.target.clone() };
+  if (distOn && distCamSave) { camMem[sceneId] = { p: distCamSave.p.clone(), t: distCamSave.t.clone() }; distCamSave = null; }
+  else camMem[sceneId] = { p: camera.position.clone(), t: controls.target.clone() };
+  disposeDistGeom();
   highlight(null); selectedBom = null; $('#sheet').classList.add('hidden'); $('#dateBox').classList.add('hidden'); closeDossier(); closeParts();
   if (sceneId === 'machine' && explodeTarget) setExplode(false, 4);
   sceneId = id; if (id === 'corvette') ensureCar();
@@ -707,10 +835,10 @@ function setScene(id) {
   $('#ttlSub').textContent = id === 'corvette' ? (car?.stats().glb ? 'Installation de l\'unité · modèle 3D du projet' : 'Installation de l\'unité · reconstitution provisoire') : 'Gravity Distortion Time Displacement Unit · simulation';
   $('#hint').textContent = id === 'corvette' ? 'Touche une pièce pour sa fiche · touche la C204 pour l\'ouvrir' : 'Touche une pièce pour sa fiche · glisse pour tourner · pince pour zoomer';
   const m = camMem[id]; camAnim = null;
-  if (id === 'corvette') { if (m) { camera.position.copy(m.p); controls.target.copy(m.t); } else { controls.target.set(0, 0, 0); camera.position.copy(CAR_DIR); } refitCar(); syncLabels(); return; } // garde l'angle, recadre la distance
-  camera.position.copy(m.p); controls.target.copy(m.t);
-  [controls.minDistance, controls.maxDistance] = LIMITS[id]; controls.update();
+  if (id === 'corvette') { if (m) { camera.position.copy(m.p); controls.target.copy(m.t); } else { controls.target.set(0, 0, 0); camera.position.copy(CAR_DIR); } refitCar(); }
+  else { camera.position.copy(m.p); controls.target.copy(m.t); [controls.minDistance, controls.maxDistance] = LIMITS[id]; controls.update(); }
   syncLabels();
+  if (distOn) { distCamSave = { p: camera.position.clone(), t: controls.target.clone(), lim: [controls.minDistance, controls.maxDistance] }; applyDistances(true); }
 }
 addEventListener('hashchange', () => setScene(location.hash === '#corvette' ? 'corvette' : 'machine'));
 $('#bToCar').onclick = () => { location.hash = '#corvette'; };
@@ -721,7 +849,7 @@ $('#bTrip').onclick = () => { tourIdx = null; showPart('trip'); };
 $('#bCarJump').onclick = () => startCarJump();
 async function startCarJump() {
   if (running || !car) return;
-  running = true; abortFlag = false; syncNav(); $('#hint').classList.add('hidden'); highlight(null); selectedBom = null; closeParts(); $('#sheet').classList.add('hidden');
+  running = true; abortFlag = false; syncNav(); $('#hint').classList.add('hidden'); highlight(null); selectedBom = null; closeParts(); setDistances(false); $('#sheet').classList.add('hidden');
   car.toggle('doors', false); car.toggle('hood', false); $('#bDoors').classList.remove('on'); $('#bHood').classList.remove('on');
   $('#stTitle').textContent = 'SAUT DEPUIS LA CORVETTE'; $('#destTxt').textContent = '1975 (récit de Titor)';
   const ol = $('#stSteps'); ol.innerHTML = CAR_STEPS.map(s => `<li>${s}</li>`).join('');
@@ -788,7 +916,7 @@ renderer.setAnimationLoop(() => {
     rpm += (rpmTarget - rpm) * dt * 0.8; fieldLevel += (fieldTarget - fieldLevel) * dt * 1.2;
     $('#gRpm').style.width = (rpm * 100) + '%'; $('#gGrav').style.width = (fieldLevel * 100) + '%';
     car.sizeHotspots(camera, innerHeight); car.showHotspots(!running);
-    car.update(dt, t, rpm, fieldLevel); updateLoops(); renderer.render(car.scene, camera); return;
+    car.update(dt, t, rpm, fieldLevel); updateLoops(); if (distOn) updateDistLabels(); renderer.render(car.scene, camera); return;
   }
   explode += (explodeTarget - explode) * Math.min(1, dt * 4);
   if (!mixer || !actions.explode) explodeData.forEach(e => e.obj.position.copy(e.base).addScaledVector(e.off, explode));
@@ -805,6 +933,7 @@ renderer.setAnimationLoop(() => {
   if (jumpT >= 0) { jumpT += dt; parts.material.opacity = Math.max(0, 1 - jumpT / 3); for (let i = 0; i < N * 3; i++) pPos[i] += pVel[i] * dt; pGeo.attributes.position.needsUpdate = true; } else parts.material.opacity = 0;
   if (mixer) mixer.update(dt);
   if (!$('#labels').hidden) updateLabels();
+  if (distOn) updateDistLabels();
   renderer.render(scene, camera);
 });
 function updateLoops() {
@@ -818,6 +947,7 @@ if (demo === 'tour') $('#bTour').click();
 if (demo === 'dossier') $('#bDossier').click();
 if (demo === 'pieces') openParts();
 if (demo === 'labels') setLabels(true);
-window.__c204 = { version: '0.7.1', overview: () => overview(), carView: () => car && car.bbox && (() => { const bb = car.bbox, xs = [], ys = []; for (let i = 0; i < 8; i++) { const v = new THREE.Vector3(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z).project(camera); xs.push((v.x + 1) / 2 * innerWidth); ys.push((1 - v.y) / 2 * innerHeight); } return { x0: Math.round(Math.min(...xs)), x1: Math.round(Math.max(...xs)), y0: Math.round(Math.min(...ys)), y1: Math.round(Math.max(...ys)), dist: +camera.position.distanceTo(controls.target).toFixed(2) }; })(), pickAt(x, y) { ptr.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); ray.setFromCamera(ptr, camera); return carPick(); }, hotspotAt(card) { const h = car?.hotspots.find(h => h.userData.card === card); if (!h || !h.visible) return null; const v = h.getWorldPosition(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, camera, controls, screenOf(n) { const o = (sceneId === 'corvette' ? car.scene : scene).getObjectByName(n); if (!o) return null; const v = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, get scene() { return sceneId; }, get car() { return car && car.stats(); }, get render() { const i = renderer.info; return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, heapMB: performance.memory ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : null }; }, get machineVisible() { return machine.visible; }, get explode() { const a = actions.explode; return { target: explodeTarget, lerp: +explode.toFixed(3), time: a ? +a.time.toFixed(3) : null, active: a ? a.isScheduled() : false, paused: a ? a.paused : null }; }, groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; }, openParts, closeParts, setLabels, revealBom, get partsOpen() { return !$('#parts').classList.contains('hidden'); }, get labelsOn() { return labelsOn; }, get selectedBom() { return selectedBom; }, get bom() { return { items: BOM.map(p => ({ n: p.n, fr: p.fr, en: p.en, qty: p.qty, notes: p.notes, nodes: p.nodes.slice(), mapped: p.nodes.length > 0 })), unmapped: BOM.filter(p => !p.nodes.length).map(p => p.n), found: Object.fromEntries(BOM.map(p => [p.n, bomObjects(p.n).map(o => o.name)])) }; }, labels() { return labelEls.map(L => ({ n: L.n, nodes: L.names, hidden: L.el.classList.contains('off') || $('#labels').hidden, sel: L.el.classList.contains('sel'), text: L.el.textContent.trim(), x: L.el.style.transform, hit: [L.el.offsetWidth, L.el.offsetHeight] })); }, labelStats() { const vis = labelEls.filter(L => !L.el.classList.contains('off') && !$('#labels').hidden); const hits = vis.map(L => { const r = L.el.getBoundingClientRect(); return { n: L.n, w: Math.round(r.width), h: Math.round(r.height) }; }); return { hit: LAB_HIT, created: labelEls.length, vis: vis.length, nums: vis.map(L => L.n).sort((a, b) => a - b), overlap: labelOverlap, overlapRaw: labelOverlapRaw, qaBefore: innerWidth <= 500 ? 84 : (innerHeight <= 500 ? 192 : null), hits }; }, header() { const t = $('#ttlMain'), s = $('#ttlSub'); const br = b => b.getBoundingClientRect(); const overlap = (a, b) => !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom); const btns = [...document.querySelectorAll('#topBtns button')].filter(b => b.offsetParent); const tr = br(t), sr = br(s); return { title: t.textContent, sub: s.textContent, titleScroll: t.scrollWidth, titleClient: t.clientWidth, titleCut: t.scrollWidth > t.clientWidth + 1, subScroll: s.scrollWidth, subClient: s.clientWidth, subCut: s.scrollWidth > s.clientWidth + 1, overlapBtns: btns.some(b => overlap(tr, br(b)) || overlap(sr, br(b))), w: innerWidth, h: innerHeight }; } };
+if (demo === 'distances') setDistances(true);
+window.__c204 = { version: '0.8', overview: () => overview(), carView: () => car && car.bbox && (() => { const bb = car.bbox, xs = [], ys = []; for (let i = 0; i < 8; i++) { const v = new THREE.Vector3(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z).project(camera); xs.push((v.x + 1) / 2 * innerWidth); ys.push((1 - v.y) / 2 * innerHeight); } return { x0: Math.round(Math.min(...xs)), x1: Math.round(Math.max(...xs)), y0: Math.round(Math.min(...ys)), y1: Math.round(Math.max(...ys)), dist: +camera.position.distanceTo(controls.target).toFixed(2) }; })(), pickAt(x, y) { ptr.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); ray.setFromCamera(ptr, camera); return carPick(); }, hotspotAt(card) { const h = car?.hotspots.find(h => h.userData.card === card); if (!h || !h.visible) return null; const v = h.getWorldPosition(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, camera, controls, screenOf(n) { const o = (sceneId === 'corvette' ? car.scene : scene).getObjectByName(n); if (!o) return null; const v = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, get scene() { return sceneId; }, get car() { return car && car.stats(); }, get render() { const i = renderer.info; return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, heapMB: performance.memory ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : null }; }, get machineVisible() { return machine.visible; }, get explode() { const a = actions.explode; return { target: explodeTarget, lerp: +explode.toFixed(3), time: a ? +a.time.toFixed(3) : null, active: a ? a.isScheduled() : false, paused: a ? a.paused : null }; }, groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; }, openParts, closeParts, setLabels, revealBom, get partsOpen() { return !$('#parts').classList.contains('hidden'); }, get labelsOn() { return labelsOn; }, get selectedBom() { return selectedBom; }, get bom() { return { items: BOM.map(p => ({ n: p.n, fr: p.fr, en: p.en, qty: p.qty, notes: p.notes, nodes: p.nodes.slice(), mapped: p.nodes.length > 0 })), unmapped: BOM.filter(p => !p.nodes.length).map(p => p.n), found: Object.fromEntries(BOM.map(p => [p.n, bomObjects(p.n).map(o => o.name)])) }; }, labels() { return labelEls.map(L => ({ n: L.n, nodes: L.names, hidden: L.el.classList.contains('off') || $('#labels').hidden, sel: L.el.classList.contains('sel'), text: L.el.textContent.trim(), x: L.el.style.transform, hit: [L.el.offsetWidth, L.el.offsetHeight] })); }, labelStats() { const vis = labelEls.filter(L => !L.el.classList.contains('off') && !$('#labels').hidden); const hits = vis.map(L => { const r = L.el.getBoundingClientRect(); return { n: L.n, w: Math.round(r.width), h: Math.round(r.height) }; }); return { hit: LAB_HIT, created: labelEls.length, vis: vis.length, nums: vis.map(L => L.n).sort((a, b) => a - b), overlap: labelOverlap, overlapRaw: labelOverlapRaw, qaBefore: innerWidth <= 500 ? 84 : (innerHeight <= 500 ? 192 : null), hits }; }, header() { const t = $('#ttlMain'), s = $('#ttlSub'); const br = b => b.getBoundingClientRect(); const overlap = (a, b) => !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom); const btns = [...document.querySelectorAll('#topBtns button')].filter(b => b.offsetParent); const tr = br(t), sr = br(s); return { title: t.textContent, sub: s.textContent, titleScroll: t.scrollWidth, titleClient: t.clientWidth, titleCut: t.scrollWidth > t.clientWidth + 1, subScroll: s.scrollWidth, subClient: s.clientWidth, subCut: s.scrollWidth > s.clientWidth + 1, overlapBtns: btns.some(b => overlap(tr, br(b)) || overlap(sr, br(b))), w: innerWidth, h: innerHeight }; }, setDistances, get dist() { return distStats(); }, get tech() { return PART_TECH; }, get specs() { return UNIT_SPECS; } };
 
 if (location.hash === '#corvette') setScene('corvette');

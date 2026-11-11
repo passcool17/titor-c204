@@ -1,16 +1,16 @@
 # Machine C204 (John Titor) — page 3D interactive
 - Lien jouable : https://passcool17.github.io/titor-c204/
 - Dépôt : https://github.com/passcool17/titor-c204 (bot Arcade 3D)
-- État : v0.7.1 — scène Machine (GLB c204.glb) et scène Corvette 1967 (GLB corvette.glb v2), navigation #machine / #corvette, panneau Pièces et mode Étiquettes (en-tête mobile corrigé, pastilles 44 px sans chevauchement).
-- Contrôles : glisser pour tourner, pincer pour zoomer, toucher une pièce = fiche. Boutons : Démarrer (choix de date, séquence 8 étapes, compte à rebours, saut simulé, arrêt d'urgence), Éclatée, Visite (22 pièces), Champ (sinusoïde de Tipler, p.5), Dossier (histoire, manuel, IBM 5100, prédictions, identité, physique, tableau Vérifié/Non vérifié), Pièces (bon de commande des 20 pièces de l'unité, depuis les deux scènes), Étiquettes (numéros sur le modèle, scène Machine).
-- Tests : `?demo=explode|field|tour|dossier|pieces|labels`.
+- État : v0.8 — scène Machine (GLB c204.glb) et scène Corvette 1967 (GLB corvette.glb v2), navigation #machine / #corvette, panneau Pièces (données techniques, caractéristiques de l'unité, notes de référence), mode Étiquettes, overlay Distances de sécurité.
+- Contrôles : glisser pour tourner, pincer pour zoomer, toucher une pièce = fiche. Boutons : Démarrer (choix de date, séquence 8 étapes, compte à rebours, saut simulé, arrêt d'urgence), Éclatée, Visite (22 pièces), Champ (sinusoïde de Tipler, p.5), Dossier (histoire, manuel, IBM 5100, prédictions, identité, physique, tableau Vérifié/Non vérifié), Pièces (bon de commande des 20 pièces, données techniques, caractéristiques de l'unité), Étiquettes (numéros sur le modèle, scène Machine), Distances (repères de sécurité autour de la Machine ou de la Corvette).
+- Tests : `?demo=explode|field|tour|dossier|pieces|labels|distances`.
 - GLB attendu : objets nommés selon /workspace/projets/titor-c204/manuel/NOMS-OBJETS.md ; actions idle, startup, spin_singularities, field_pulse, jump, explode.
 ## Ressources
 - Pages du manuel (docs/manuel-p5..7.jpg) : Internet Archive « JohnTitorTimeMachineManual », documents publiés anonymement en 2000-2001, licence inconnue ; reproduction documentaire réduite.
 - Three.js (MIT) via jsDelivr. Sons : voir v0.4 (packs Kenney CC0). Textures faites en code.
 ## Prochaines étapes
-- Test QA et mesure des fps / du son sur le S20 ; Safari et verrouillage d'orientation non testés.
-- Pièces n°7 et n°20 encore absentes du modèle 3D (voir v0.7).
+- Test QA de la v0.8 et mesure des fps / du son sur le S20 ; Safari et verrouillage d'orientation non testés.
+- Pièces n°7 et n°20 encore absentes du modèle 3D (voir v0.7). Les pièces n°16 à 20 n'ont pas de « Donnée technique » dans le document source : rien n'est inventé.
 
 ## v0.2 — 11 nov. 2026
 - Vrai modèle branché : `assets/c204_static_preview.glb` (3D · Modélisation & textures puis 3D · Rendu & export GLB, d'après le manuel ; original, 132 Ko, 5 520 triangles, Draco + WebP). Le fichier chargé est choisi dans `assets/model.json`.
@@ -149,3 +149,15 @@ Corrige les 2 bugs du rapport QA v0.7 (`/workspace/qa/titor-c204/rapport-2026-11
 - **Tests** : `/workspace/games3d/titor-c204-tests/t07.js`, 412×915, 915×412, contrôle d'en-tête aussi en 1280×800 et en scène Corvette. 0 erreur, 0 requête 404, en local et en ligne.
 - **Captures** : `/workspace/games3d/titor-c204-v07-pieces.png`, `titor-c204-v07-etiquettes.png`, `titor-c204-v071-entete.png`.
 - Inchangé : les pièces 7 et 20 restent non mappées ; toucher une pièce interne à travers le boîtier ouvre encore « Boîtier principal ».
+
+## v0.8 — données techniques C204 (11 nov. 2026)
+Demande : enrichir le panneau Pièces et les fiches d'après `/workspace/games3d/titor-c204-docs/pieces-C204-details.txt` (PDF à côté, même contenu, référence BC-C204-GE-001-DT). Textes repris du document seulement. Cadre : « Selon le récit de John Titor, non vérifié ». L'expression « théorie du complot » n'est pas utilisée.
+- **Donnée technique sur les fiches** : chaque fiche de pièce (liste, modèle ou pupitre) affiche un bloc « Donnée technique » lorsque le document en fournit une. Les n° groupés dans le document (1-2, 5-6, 8-10) reçoivent le même texte. Les pièces **n°16, 17, 18, 19 et 20** n'ont aucune donnée dans le document : le bloc n'apparaît pas (rien n'est inventé). La pièce n°7 a une donnée (« Surveillance de l'état des singularités ») mais reste non mappée en 3D.
+- **Section « Caractéristiques de l'unité »** dans le panneau Pièces, avec les chiffres du document : poids 225 à ≈ 500 livres (≈ 102–227 kg) ; vitesse ≈ 10 ans/heure à 100 % de puissance, précision d'environ 50-60 ans par saut ; gravité jusqu'à ≈ 2 G près de l'unité, champ capable de courber un faisceau laser ; distances de sécurité (verticale 6 m, mass offset 5 m, arrière 8 m, avant 11 m) ; unité à masse stationnaire (déplacement dans le temps, pas dans l'espace).
+- **Notes de référence** en bas du panneau (4 notes du document DT, plus le pied de page de source). Les 4 notes importantes du bon de commande (v0.7) restent au-dessus.
+- **Overlay « Distances de sécurité »** (bouton dans l'en-tête + bascule dans le panneau) : anneau (mass offset 5 m), barres avant 11 m / arrière 8 m, marqueur vertical 6 m, grille élargie et pastilles HTML. Marche/arrêt sur les scènes Machine et Corvette. La géométrie est détruite (`dispose`) à l'extinction ou au changement de scène. Pendant l'affichage, le brouillard de la scène Machine (sinon près 6 / loin 16, ce qui masquait l'overlay) passe à près 28 / loin 90, puis est remis. La caméra est reculée pour tout voir en 412×915, puis restaurée à l'extinction. L'overlay est coupé au lancement d'une séquence ou d'un saut.
+- **Convention d'axes** : pour les deux GLB exportés, **avant = +Z**, **arrière = −Z**, **verticale = +Y**. L'origine des distances est le centre au sol de la boîte englobante de la Machine, ou de la Corvette dans l'autre scène. Les distances se mesurent depuis cette origine, pas depuis le bord du véhicule.
+- **En-tête** : le bouton Distances s'ajoute à la rangée Pièces / Étiquettes. Le calage deux lignes de la v0.7.1 en 412×915 est conservé (titre entier « ARMY MODEL GE / C204 », sous-titre lisible, pas d'ellipse).
+- **Tests** : `/workspace/games3d/titor-c204-tests/t08.js` (extension de t07 ; Playwright + Chrome, tactile, 412×915 et 915×412) : fiches avec donnée technique (n°12, 4, 13) et sans (n°16), section Caractéristiques et notes, overlay marche/arrêt sur Machine et Corvette (4 pastilles visibles), en-tête, étiquettes sans chevauchement, 0 erreur, 0 requête 404. `?demo=distances`.
+- **Captures** : `/workspace/games3d/titor-c204-v08-fiche.png` (fiche n°12 + donnée technique), `titor-c204-v08-caracteristiques.png`, `titor-c204-v08-distances.png`.
+- **Limites** : pièces 7 et 20 toujours non mappées ; n°16–20 sans donnée technique (document) ; fps réel du S20 non mesuré ; Safari non testé. Les distances sont un schéma de lecture, pas une simulation physique.
