@@ -5,7 +5,7 @@ export const CAR_PARTS = {
   body: { ref: 'Véhicule', fr: 'Chevrolet Corvette Sting Ray 1967 (C2), décapotable', en: '1967 Corvette Sting Ray convertible',
     story: "Titor a écrit que l'unité C204 avait d'abord été installée dans une Corvette 1967 décapotable pour le voyage vers 1975 : une voiture d'époque qui n'attirerait pas l'attention, avec une suspension capable de porter le poids de l'unité.",
     facts: "1967 est la dernière année de la 2e génération (C2, 1963-1967). Production 1967 : 22 940 voitures, dont 14 436 décapotables et 8 504 coupés. Empattement 98 po (2,49 m), longueur 175,1 po (4,45 m), largeur 69,6 po (1,77 m). Carrosserie en fibre de verre. Aucune Corvette n'a été identifiée de façon vérifiable comme celle du récit.",
-    note: "Modèle 3D provisoire fait en code, aux dimensions réelles, sans logo ; le vrai modèle viendra de la chaîne 3D." },
+    note: "Modèle 3D low-poly de la chaîne 3D du projet (Modélisation, Rig, Rendu), aux dimensions réelles, sans logo ni marque. Si le fichier ne se charge pas, un modèle provisoire fait en code prend le relais." },
   engine: { ref: 'Capot', fr: 'Moteur V8 (sous le capot)', en: 'Small-block 327 / big-block 427 V8',
     story: "Le récit ne précise pas quel moteur avait la voiture.",
     facts: "En 1967 : V8 327 po³ (5,4 L) de 300 ou 350 ch, ou V8 427 po³ (7,0 L) de 390, 400 ou 435 ch (Tri-Power pour les deux derniers). La L88 (427, 430 ch annoncés) n'a été produite qu'à 20 exemplaires. Boîte 3 vitesses de série, 4 vitesses Muncie ou Powerglide en option." },

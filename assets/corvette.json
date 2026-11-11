@@ -1,1 +1,1 @@
-{"url": null, "note": "Modèle provisoire procédural (corvette.js). Mettre ici le GLB de la chaîne 3D, ex. assets/corvette.glb."}
+{"url": "assets/corvette.glb", "note": "GLB final de la chaîne 3D (Modélisation → Rig → Rendu & export), Draco + WebP. Mettre null pour revenir au modèle provisoire de corvette.js."}

@@ -4,9 +4,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { PARTS, TOUR, STEPS, DOSSIER } from './data.js';
-import { CAR_PARTS, CAR_STEPS } from './data-car.js';
-import { createCorvette } from './corvette.js';
+import { PARTS, TOUR, STEPS, DOSSIER } from './data.js?v=0.6';
+import { CAR_PARTS, CAR_STEPS } from './data-car.js?v=0.6';
+import { createCorvette } from './corvette.js?v=0.6';
 
 const $ = s => document.querySelector(s);
 const canvas = $('#c');
@@ -334,7 +334,7 @@ canvas.addEventListener('pointerup', e => {
   ray.setFromCamera(ptr, camera);
   $('#hint').style.opacity = 0;
   if (sceneId === 'corvette') {
-    const h = ray.intersectObjects(car.pickables, false)[0]; const id = h?.object.userData.card;
+    const id = carPick();
     if (id === 'c204') { sfx('beep_soft', 0.5); location.hash = '#machine'; return; } // toucher la C204 ouvre la vue Machine
     if (id) { if (id === 'wheels') car.spin(); focusOn(id); showPart(id); } else { $('#sheet').classList.add('hidden'); highlight(null); }
     return;
@@ -345,6 +345,18 @@ canvas.addEventListener('pointerup', e => {
 });
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => { if (b.dataset.close === 'dossier') return closeDossier(); $('#' + b.dataset.close).classList.add('hidden'); if (b.dataset.close === 'sheet') { highlight(null); tourIdx = null; } });
 
+// Corvette : repères touchables d'abord, puis la C204 (prioritaire), puis la zone élargie de l'installation si elle est devant
+function carPick() {
+  if (car.hotspots.some(h => h.visible)) { // si deux repères se chevauchent, celui dont le centre est le plus près du doigt
+    const sh = ray.intersectObjects(car.hotspots, false), d2 = o => { const v = o.getWorldPosition(new THREE.Vector3()).project(camera); return (v.x - ptr.x) ** 2 * camera.aspect ** 2 + (v.y - ptr.y) ** 2; };
+    if (sh.length) return sh.map(h => h.object).sort((a, b) => d2(a) - d2(b))[0].userData.card;
+  }
+  const hs = ray.intersectObjects(car.pickables, false);
+  const real = hs.find(x => !x.object.userData.hitbox), hb = hs.find(x => x.object.userData.hitbox);
+  if (real?.object.userData.card === 'c204') return 'c204';
+  if (hb && (!real || hb.distance < real.distance + 0.05)) return 'install';
+  return real?.object.userData.card || null;
+}
 // caméra animée
 let camAnim = null;
 function focusOn(id) {
@@ -353,7 +365,8 @@ function focusOn(id) {
   const c = bb.getCenter(new THREE.Vector3()); const s = Math.min(sceneId === 'corvette' ? 2.2 : 9, Math.max(0.25, bb.getSize(new THREE.Vector3()).length()));
   const dir = camera.position.clone().sub(controls.target).normalize();
   if (dir.y < 0.35) { dir.y = 0.5; dir.normalize(); }
-  camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: c, toP: c.clone().add(dir.multiplyScalar(s * 2.2 + 0.4)) };
+  const dist = sceneId === 'corvette' ? Math.max(1.6, fitDist(bb.getSize(new THREE.Vector3()).length() / 2)) : s * 2.2 + 0.4; // la pièce entière reste à l'écran, portrait compris
+  camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: c, toP: c.clone().add(dir.multiplyScalar(dist)) };
 }
 function overview() { if (sceneId === 'corvette') return carOverview(); camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: new THREE.Vector3(0, 0.2, 0), toP: new THREE.Vector3(1.15, 1.45, 1.5) }; }
 
@@ -397,6 +410,7 @@ $('#bGo').onclick = () => { audio(); $('#dateBox').classList.add('hidden'); star
 $('#bAbort').onclick = () => { if (abortFlag) return; abortFlag = true; abortWaits(); jumpSnd?.stop(); sfx('abort', 0.9); };
 function fmtDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' }); }
 async function startSeq(dest) {
+  $('#stTitle').textContent = 'SÉQUENCE DE DÉMARRAGE';
   running = true; abortFlag = false; syncNav(); $('#hint').classList.add('hidden'); closeDossier();
   const wasExploded = explodeTarget > 0 || explode > 0.01 || !!actions.explode?.isScheduled();
   if (wasExploded) { setExplode(false, 2.5); sfx('explode', 0.7, 0.85); } // referme la vue éclatée (≈0,8 s) avant d'ouvrir le couvercle
@@ -438,10 +452,25 @@ function finishSeq() {
 
 // ---------- scène Corvette 1967 ----------
 let car = null, sceneId = 'machine';
-const camMem = { machine: { p: new THREE.Vector3(1.15, 1.45, 1.5), t: new THREE.Vector3(0, 0.2, 0) }, corvette: { p: new THREE.Vector3(-4.7, 5.3, -3.2), t: new THREE.Vector3(-0.1, 0.4, -0.25) } };
+const camMem = { machine: { p: new THREE.Vector3(1.15, 1.45, 1.5), t: new THREE.Vector3(0, 0.2, 0) }, corvette: null };
 const LIMITS = { machine: [0.5, 7], corvette: [1.4, 12] };
-function ensureCar() { if (!car) { const t0 = performance.now(); car = createCorvette({ renderer, makeLoader, c204Ready }); window.__c204.carBuildMs = Math.round(performance.now() - t0); } return car; }
-function carOverview() { camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: new THREE.Vector3(-0.1, 0.4, -0.25), toP: new THREE.Vector3(-4.7, 5.3, -3.2) }; }
+function ensureCar() { if (!car) { const t0 = performance.now(); car = createCorvette({ renderer, makeLoader, c204Ready, onReady: () => { if (sceneId === 'corvette') { $('#ttlSub').textContent = 'Installation de l\'unité · modèle 3D du projet'; if (!running) refitCar(); } } }); window.__c204.carBuildMs = Math.round(performance.now() - t0); } return car; }
+// Cadrage depuis la vraie boîte de la voiture : la sphère englobante tient dans le plus petit angle de vue
+// (portrait : l'horizontal), donc la voiture reste entière sous tous les angles de l'orbite, avec 10 % de marge.
+const CAR_DIR = new THREE.Vector3(-0.62, 0.62, -0.48).normalize(); // vue arrière côté passager, en hauteur (on voit la C204)
+function fitDist(r) { const v = THREE.MathUtils.degToRad(camera.fov / 2), h = Math.atan(Math.tan(v) * camera.aspect); return r / Math.sin(Math.min(v, h)) * 1.1; }
+function carFit(dir) {
+  const bb = car?.bbox; if (!bb) return null;
+  const c = bb.getCenter(new THREE.Vector3()), d = fitDist(bb.getSize(new THREE.Vector3()).length() / 2);
+  LIMITS.corvette[1] = Math.max(12, d * 1.4);
+  return { t: c, p: c.clone().addScaledVector(dir, d), d };
+}
+function refitCar() { // au chargement, à chaque redimensionnement / rotation de l'écran, et à l'arrivée du GLB
+  const dir = camera.position.clone().sub(controls.target); if (dir.lengthSq() < 1e-6) dir.copy(CAR_DIR); dir.normalize();
+  const f = carFit(dir); if (!f) return; camAnim = null;
+  controls.target.copy(f.t); camera.position.copy(f.p); [controls.minDistance, controls.maxDistance] = LIMITS.corvette; controls.update();
+}
+function carOverview() { const f = carFit(CAR_DIR); if (!f) return; [controls.minDistance, controls.maxDistance] = LIMITS.corvette; camAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toT: f.t, toP: f.p }; }
 function syncNav() { ['#bToCar', '#bToMachine'].forEach(s => $(s).disabled = running); }
 function setScene(id) {
   if (id === sceneId) return;
@@ -453,9 +482,11 @@ function setScene(id) {
   document.body.dataset.scene = id;
   $('#bar').classList.toggle('hidden', id !== 'machine'); $('#barCar').classList.toggle('hidden', id !== 'corvette');
   $('#ttlMain').textContent = id === 'corvette' ? 'CORVETTE 1967 · C204' : 'ARMY MODEL GE / C204';
-  $('#ttlSub').textContent = id === 'corvette' ? 'Installation de l\'unité · reconstitution provisoire' : 'Gravity Distortion Time Displacement Unit · simulation';
+  $('#ttlSub').textContent = id === 'corvette' ? (car?.stats().glb ? 'Installation de l\'unité · modèle 3D du projet' : 'Installation de l\'unité · reconstitution provisoire') : 'Gravity Distortion Time Displacement Unit · simulation';
   $('#hint').textContent = id === 'corvette' ? 'Touche une pièce pour sa fiche · touche la C204 pour l\'ouvrir' : 'Touche une pièce pour sa fiche · glisse pour tourner · pince pour zoomer';
-  const m = camMem[id]; camera.position.copy(m.p); controls.target.copy(m.t); camAnim = null;
+  const m = camMem[id]; camAnim = null;
+  if (id === 'corvette') { if (m) { camera.position.copy(m.p); controls.target.copy(m.t); } else { controls.target.set(0, 0, 0); camera.position.copy(CAR_DIR); } refitCar(); return; } // garde l'angle, recadre la distance
+  camera.position.copy(m.p); controls.target.copy(m.t);
   [controls.minDistance, controls.maxDistance] = LIMITS[id]; controls.update();
 }
 addEventListener('hashchange', () => setScene(location.hash === '#corvette' ? 'corvette' : 'machine'));
@@ -484,19 +515,21 @@ async function startCarJump() {
     }
     for (let n = 5; n > 0; n--) { $('#count').textContent = n; sfx('tick', 0.9, n === 1 ? 1.25 : 1); await wait(1000); }
     $('#count').textContent = 'SAUT';
+    const T = car.jumpTiming; // calé sur le clip jump du GLB (disparition img 72-94) ou sur le saut par code
+    const until = async t => { while (car.jumpClock() < t - 1e-3) await wait(30); }; // suit l'horloge du clip, même si l'appareil rame
     car.startJump(); jumpSnd = sfx('jump', 1); // la voiture reste immobile et vibre
-    await wait(1400);
-    $('#flash').style.opacity = 1; await wait(350);
-    car.hide(); $('#flash').style.opacity = 0; await wait(1800);
+    await until(T.flash);
+    $('#flash').style.opacity = 1; await until(T.gone);
+    car.hide(); $('#flash').style.opacity = 0; await until(T.back);
     car.show(); $('#flash').style.opacity = 0.8; await wait(200); $('#flash').style.opacity = 0;
+    await until(T.end);
     car.endJump();
     $('#count').innerHTML = '<small style="font-size:13px">Arrivée simulée :</small><br>1975';
   } catch (e) {
     $('#count').textContent = 'ARRÊTÉ';
     $('#flash').style.opacity = 0; car.endJump(); // un arrêt remet toujours la voiture visible, à l'échelle 1
   }
-  $('#stTitle').textContent = 'SÉQUENCE DE DÉMARRAGE';
-  finishSeq();
+  finishSeq(); // le titre « SAUT DEPUIS LA CORVETTE » reste jusqu'à la fermeture du panneau
 }
 let jumpT = -1, jumpSnd = null;
 function endJump() {
@@ -519,7 +552,7 @@ async function jump(dest) {
 }
 
 // ---------- boucle ----------
-function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 62 : 45; camera.updateProjectionMatrix(); }
+function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 62 : 45; camera.updateProjectionMatrix(); if (sceneId === 'corvette' && car) refitCar(); }
 addEventListener('resize', resize); resize();
 $('#bFull').onclick = async () => { try { if (!document.fullscreenElement) { await document.documentElement.requestFullscreen(); await screen.orientation?.lock?.('portrait').catch(() => {}); } else await document.exitFullscreen(); } catch {} };
 
@@ -531,6 +564,7 @@ renderer.setAnimationLoop(() => {
   if (sceneId === 'corvette') {
     rpm += (rpmTarget - rpm) * dt * 0.8; fieldLevel += (fieldTarget - fieldLevel) * dt * 1.2;
     $('#gRpm').style.width = (rpm * 100) + '%'; $('#gGrav').style.width = (fieldLevel * 100) + '%';
+    car.sizeHotspots(camera, innerHeight); car.showHotspots(!running);
     car.update(dt, t, rpm, fieldLevel); updateLoops(); renderer.render(car.scene, camera); return;
   }
   explode += (explodeTarget - explode) * Math.min(1, dt * 4);
@@ -558,6 +592,6 @@ if (demo === 'explode') $('#bExplode').click();
 if (demo === 'field') { rpmTarget = 1; fieldTarget = 1; }
 if (demo === 'tour') $('#bTour').click();
 if (demo === 'dossier') $('#bDossier').click();
-window.__c204 = { version: '0.5', camera, controls, screenOf(n) { const o = (sceneId === 'corvette' ? car.scene : scene).getObjectByName(n); if (!o) return null; const v = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, get scene() { return sceneId; }, get car() { return car && car.stats(); }, get render() { const i = renderer.info; return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, heapMB: performance.memory ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : null }; }, get machineVisible() { return machine.visible; }, get explode() { const a = actions.explode; return { target: explodeTarget, lerp: +explode.toFixed(3), time: a ? +a.time.toFixed(3) : null, active: a ? a.isScheduled() : false, paused: a ? a.paused : null }; }, groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; } };
+window.__c204 = { version: '0.6', overview: () => overview(), carView: () => car && car.bbox && (() => { const bb = car.bbox, xs = [], ys = []; for (let i = 0; i < 8; i++) { const v = new THREE.Vector3(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z).project(camera); xs.push((v.x + 1) / 2 * innerWidth); ys.push((1 - v.y) / 2 * innerHeight); } return { x0: Math.round(Math.min(...xs)), x1: Math.round(Math.max(...xs)), y0: Math.round(Math.min(...ys)), y1: Math.round(Math.max(...ys)), dist: +camera.position.distanceTo(controls.target).toFixed(2) }; })(), pickAt(x, y) { ptr.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); ray.setFromCamera(ptr, camera); return carPick(); }, hotspotAt(card) { const h = car?.hotspots.find(h => h.userData.card === card); if (!h || !h.visible) return null; const v = h.getWorldPosition(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, camera, controls, screenOf(n) { const o = (sceneId === 'corvette' ? car.scene : scene).getObjectByName(n); if (!o) return null; const v = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()).project(camera); return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)]; }, get scene() { return sceneId; }, get car() { return car && car.stats(); }, get render() { const i = renderer.info; return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, heapMB: performance.memory ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : null }; }, get machineVisible() { return machine.visible; }, get explode() { const a = actions.explode; return { target: explodeTarget, lerp: +explode.toFixed(3), time: a ? +a.time.toFixed(3) : null, active: a ? a.isScheduled() : false, paused: a ? a.paused : null }; }, groups, PARTS, renderer, get sfx() { return Object.keys(buf); }, get audio() { return { state: ac?.state || 'off', ext: SFX_EXT, muted, master: master?.gain.value, loops: Object.fromEntries(Object.entries(loops).map(([k, L]) => [k, +L.g.gain.value.toFixed(3)])) }; } };
 
 if (location.hash === '#corvette') setScene('corvette');

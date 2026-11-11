@@ -153,14 +153,31 @@ function placeholderUnit(m) { // en attendant le GLB de la machine
   const g = merge([boxG(1.10, 0.37, 0.42, 0, 0.185, 0)]); return new THREE.Mesh(g, m.mount);
 }
 
+// Fusionne par matériau les maillages fixes sous `holder` (aucun ancêtre animé) ; les nœuds animés restent à part.
+function mergeStatic(holder, animated) {
+  holder.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(holder.matrixWorld).invert();
+  const statics = [];
+  (function walk(o, free) { o.children.forEach(c => { const f = free && !animated.has(c.name); if (c.isMesh && f && !Array.isArray(c.material)) statics.push(c); walk(c, f); }); })(holder, true); // holder peut être animé : on fusionne dans son repère local
+  const byMat = new Map(); let ok = 0;
+  statics.forEach(o => {
+    const g = o.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    const key = o.material.uuid + '|' + Object.keys(g.attributes).sort().join(',') + '|' + !!g.index;
+    (byMat.get(key) || byMat.set(key, { mat: o.material, gs: [] }).get(key)).gs.push(g);
+  });
+  byMat.forEach(({ mat, gs }) => { const g = mergeGeometries(gs, false); if (!g) return; const m = new THREE.Mesh(g, mat); m.name = holder.name + '_merged_' + (ok++); holder.add(m); });
+  if (!ok) return; // échec : on garde les pièces d'origine
+  statics.forEach(o => { const p = o.parent; [...o.children].forEach(c => p.attach(c)); p.remove(o); });
+}
+
 // ---------- correspondance noms -> fiches ----------
-const NAME2CARD = { body: 'body', door_l: 'doors', door_r: 'doors', hood: 'engine', trunk: 'deck', soft_top: 'top', steering_wheel: 'cockpit', wheel: 'wheels', c204_unit: 'c204', c204_cable: 'install', c204_mount: 'install', interior: 'cockpit', windshield: 'body', bumpers: 'body', headlights: 'body', taillights: 'body', vents: 'body' };
+const NAME2CARD = { body: 'body', door_l: 'doors', door_r: 'doors', hood: 'engine', engine_block: 'engine', trunk: 'deck', soft_top: 'top', steering_wheel: 'cockpit', steering_column: 'cockpit', dashboard: 'cockpit', center_console: 'cockpit', seat: 'cockpit', wheel: 'wheels', c204_unit: 'c204', c204_cable: 'install', c204_mount: 'install', cable_c204: 'install', c204_dash_controller: 'install', interior: 'cockpit', windshield: 'body', bumpers: 'body', bumper: 'body', headlights: 'body', taillights: 'body', vents: 'body' };
 const NKEYS = Object.keys(NAME2CARD).sort((a, b) => b.length - a.length);
 const matchKey = (n, k) => n === k || (n.startsWith(k) && /[_.\d]/.test(n[k.length] || ''));
 const cardFor = name => { const n = (name || '').toLowerCase(); const k = NKEYS.find(k => matchKey(n, k)); return k ? NAME2CARD[k] : null; };
 const ACTS = ['idle', 'doors_open', 'top_down', 'hood_open', 'wheels_spin', 'jump'];
 
-export function createCorvette({ renderer, makeLoader, c204Ready }) {
+export function createCorvette({ renderer, makeLoader, c204Ready, onReady }) {
+  let glbInfo = null;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x05080c); scene.fog = new THREE.Fog(0x05080c, 10, 30);
   const pmrem = new THREE.PMREMGenerator(renderer); const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04); scene.environment = envRT.texture; pmrem.dispose();
@@ -179,11 +196,15 @@ export function createCorvette({ renderer, makeLoader, c204Ready }) {
 
   const m = mats();
   const holder = new THREE.Group(); scene.add(holder); // vibration et disparition par code
+  let hotspots = [];
   let root = null, mixer = null, actions = {}, parts = {}, pickables = [], groups = {}, fx = {}, source = 'procédural', unit = null;
   const state = { doors: 0, top: 1, hood: 0, trunk: 0 }, target = { doors: 0, top: 1, hood: 0, trunk: 0 };
-  let spinT = 0, shake = 0, lights = 0, jumpScales = [];
+  let spinT = 0, shake = 0, lights = 0, jumpScales = [], lamps = [], restBox = null, jumpT = -1;
+  const JUMP_CODE = { flash: 1.4, gone: 1.75, back: 3.55, end: 3.75 }; // sans action jump (modèle procédural)
+  const JUMP_GLB = { flash: 2.15, gone: 2.4, back: 3.13, end: 4.0 }; // clip jump du GLB : échelle 0,001 img 72-94 (2,4-3,13 s)
 
   function index(r) {
+    r.getObjectByName('install_hitbox')?.removeFromParent();
     pickables = []; groups = {}; parts = { door_L: [], door_R: [], hood: [], trunk: [], soft_top: [], wheels: [] };
     r.traverse(o => {
       const n = o.name.toLowerCase();
@@ -197,6 +218,36 @@ export function createCorvette({ renderer, makeLoader, c204Ready }) {
     r.traverse(o => { if (!o.isMesh) return; let p = o, id = null; while (p && p !== r.parent && !id) { id = cardFor(p.name); p = p.parent; } id ||= 'body'; o.userData.card = id; pickables.push(o); });
     r.traverse(o => { const id = cardFor(o.name); if (id && o !== r) (groups[id] ||= []).push(o); });
     if (!groups.c204 && unit) groups.c204 = [unit];
+    // zone tactile élargie et invisible pour « Installation » (câbles + boîtier sous le tableau de bord) :
+    // la vraie cible fait ~100 px² ; main.js garde la C204 prioritaire quand elle est touchée
+    const ib = new THREE.Box3(); r.updateMatrixWorld(true);
+    r.traverse(o => { if (o.isMesh && o.userData.card === 'install' && !o.userData.hitbox) ib.expandByObject(o); });
+    if (!ib.isEmpty()) {
+      ib.expandByScalar(0.05); const inv = new THREE.Matrix4().copy(r.matrixWorld).invert(); ib.applyMatrix4(inv);
+      const sz = ib.getSize(new THREE.Vector3()), c = ib.getCenter(new THREE.Vector3());
+      const hb = named('install_hitbox', new THREE.Mesh(new THREE.BoxGeometry(sz.x, sz.y, sz.z), new THREE.MeshBasicMaterial({ visible: false })));
+      hb.position.copy(c); hb.userData.card = 'install'; hb.userData.hitbox = true; r.add(hb); pickables.push(hb); (groups.install ||= []).push(hb);
+    }
+    // repères touchables (taille fixe à l'écran, toujours visibles) : « C204 » ouvre la Machine, « Installation » ouvre sa fiche
+    hotspots.forEach(h => h.removeFromParent()); hotspots = [];
+    const ub = new THREE.Box3(); unit?.traverse(o => { if (o.isMesh) ub.expandByObject(o); });
+    const inv2 = new THREE.Matrix4().copy(r.matrixWorld).invert();
+    if (!ub.isEmpty()) { ub.applyMatrix4(inv2); addHotspot(r, 'c204', 'C204 ▸', '#7fdcff', new THREE.Vector3((ub.min.x + ub.max.x) / 2, ub.max.y + 1.2, (ub.min.z + ub.max.z) / 2)); }
+    const ib2 = new THREE.Box3(); r.traverse(o => { if (o.isMesh && o.userData.card === 'install' && !o.userData.hitbox) ib2.expandByObject(o); });
+    if (!ib2.isEmpty()) { ib2.applyMatrix4(inv2); addHotspot(r, 'install', 'Installation', '#ffd75a', new THREE.Vector3(ib2.min.x + 0.05, ib2.max.y + 0.25, (ib2.min.z + ib2.max.z) / 2)); }
+  }
+  const hsTex = {};
+  function addHotspot(r, card, label, color, pos) {
+    const tex = hsTex[card] ||= (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 96; const g = c.getContext('2d'); // pastille visible ~60 % ; le reste (transparent) agrandit la cible à 46 px
+      g.fillStyle = 'rgba(5,8,12,0.78)'; g.strokeStyle = color; g.lineWidth = 4; g.beginPath(); g.roundRect(20, 18, 216, 60, 30); g.fill(); g.stroke();
+      g.fillStyle = color; g.font = 'bold 30px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, 128, 50);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+    const sp = named('hotspot_' + card, new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false, depthTest: false, depthWrite: false, transparent: true })));
+    sp.renderOrder = 10; sp.position.copy(pos); sp.userData.card = card; sp.userData.hotspot = true; r.add(sp); hotspots.push(sp);
+  }
+  function sizeHotspots(camera, hpx) { // hauteur fixe en pixels (≥ 44 px de cible), quelle que soit l'orientation
+    const k = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * 46 / hpx;
+    hotspots.forEach(h => h.scale.set(k * 256 / 96, k, 1));
   }
   function attachUnit(r) {
     let u = r.getObjectByName('c204_unit');
@@ -206,8 +257,10 @@ export function createCorvette({ renderer, makeLoader, c204Ready }) {
     const mount = named('c204_mount', new THREE.Mesh(boxG(1.16, 0.04, 0.48, 0, -0.02, 0), m.mount)); unit.add(mount);
     const cc = new THREE.CatmullRomCurve3([new THREE.Vector3(-0.2, FLOOR + 0.38, -0.05), new THREE.Vector3(-0.15, FLOOR + 0.5, 0.15), new THREE.Vector3(-0.08, 0.7, 0.3), new THREE.Vector3(0, 0.72, 0.29)]);
     r.add(named('c204_cable', new THREE.Mesh(new THREE.TubeGeometry(cc, 20, 0.012, 5), m.cable)));
+    const myUnit = unit;
     c204Ready.then(src => {
-      if (!src || !unit) return; const mm = mergeByMaterial(src); mm.name = 'c204_unit_glb';
+      if (!src || unit !== myUnit || root !== r) return; // le GLB de la voiture a déjà sa propre C204
+      const mm = mergeByMaterial(src); mm.name = 'c204_unit_glb';
       const bb = new THREE.Box3().setFromObject(mm); mm.position.set(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
       const ph = unit.getObjectByName('c204_placeholder'); unit.remove(ph); ph.geometry.dispose(); unit.add(mm); index(root);
     });
@@ -215,6 +268,9 @@ export function createCorvette({ renderer, makeLoader, c204Ready }) {
   function setRoot(r) {
     if (root) { holder.remove(root); dispose(root); }
     root = r; holder.add(r); attachUnit(r); index(r);
+    // feux du GLB (atlas d'émission partagé) : matériau cloné pour qu'ils s'allument pendant le saut
+    lamps = []; r.traverse(o => { if (o.isMesh && /^(headlight|taillight|parking_light)/i.test(o.name) && !Array.isArray(o.material)) { o.material = o.material.clone(); lamps.push([o.material, o.material.emissiveIntensity || 1]); if (!o.material.emissiveMap) o.material.emissive.setHex(0xffe0b0); } });
+    r.updateMatrixWorld(true); restBox = new THREE.Box3(); r.traverse(o => { if (o.isMesh && !o.userData.hitbox) restBox.expandByObject(o, false); }); // boîte au repos, pour cadrer la caméra
     const cm = unit.getWorldPosition(new THREE.Vector3()); unitLight.position.copy(cm).add(new THREE.Vector3(0, 0.5, 0));
   }
   setRoot(buildProcedural(m));
@@ -224,16 +280,24 @@ export function createCorvette({ renderer, makeLoader, c204Ready }) {
     let url = null; try { url = (await (await fetch('assets/corvette.json', { cache: 'no-store' })).json()).url; } catch { return; }
     if (!url) return;
     makeLoader().load(url, gltf => {
-      setRoot(gltf.scene); source = url;
+      let n = 0; gltf.scene.traverse(() => n++); // nœuds du fichier, avant fusion
+      const animated = new Set(gltf.animations.flatMap(c => c.tracks.map(t => t.name.split('.')[0])));
+      const u = gltf.scene.getObjectByName('c204_unit'); if (u) mergeStatic(u, animated); // C204 dans la voiture : ~90 pièces -> une poignée de draw calls
+      setRoot(gltf.scene); source = url; if (holder.parent) holder.updateMatrixWorld(true);
       mixer = new THREE.AnimationMixer(gltf.scene); actions = {};
       gltf.animations.forEach(c => { const n = c.name.toLowerCase(); const k = ACTS.find(a => matchKey(n, a)); if (k && !actions[k]) actions[k] = mixer.clipAction(c); });
       mixer.addEventListener('finished', e => { if (e.direction < 0 && e.action !== actions.jump) e.action.stop(); });
       const jc = actions.jump?.getClip(); jumpScales = [];
       jc?.tracks.forEach(t => { if (t.name.endsWith('.scale')) { const o = gltf.scene.getObjectByName(t.name.split('.')[0]); if (o) jumpScales.push([o, o.scale.clone()]); } });
-      actions.idle?.play();
-      if (actions.top_down) toggle('top', true, true);
-      console.log('GLB Corvette chargé', url, Object.keys(actions));
-    }, undefined, () => {});
+      actions.idle?.setLoop(THREE.LoopRepeat).play();
+      if (actions.wheels_spin) actions.wheels_spin.setLoop(THREE.LoopRepeat);
+      if (actions.top_down) toggle('top', target.top > 0.5, true); // garde l'état choisi (capote repliée par défaut)
+      if (actions.doors_open && target.doors) toggle('doors', true, true);
+      if (actions.hood_open && target.hood) toggle('hood', true, true);
+      glbInfo = { nodes: n - 1, merged: true, sceneNodes: (() => { let k = 0; gltf.scene.traverse(() => k++); return k - 1; })(), size: restBox.getSize(new THREE.Vector3()).toArray().map(v => +v.toFixed(2)), clips: gltf.animations.map(c => [c.name, +c.duration.toFixed(2)]) };
+      console.log('GLB Corvette chargé', url, Object.keys(actions), glbInfo.size);
+      onReady?.();
+    }, undefined, e => { source = 'procédural (GLB non chargé)'; console.warn('GLB Corvette non chargé, modèle provisoire gardé', url, e?.message || e); });
   })();
 
   function playAction(a, on, instant) {
@@ -253,42 +317,56 @@ export function createCorvette({ renderer, makeLoader, c204Ready }) {
     for (const k in state) state[k] += (target[k] - state[k]) * Math.min(1, dt * 3.5);
     if (!actions.doors_open) { parts.door_L.forEach(o => apply(o, 'y', -1.1 * state.doors)); parts.door_R.forEach(o => apply(o, 'y', 1.1 * state.doors)); }
     if (!actions.hood_open) parts.hood.forEach(o => apply(o, 'x', -0.95 * state.hood));
-    parts.trunk.forEach(o => apply(o, 'x', -0.9 * state.trunk));
+    if (!actions.top_down) parts.trunk.forEach(o => apply(o, 'x', -0.9 * state.trunk));
     if (!actions.top_down) parts.soft_top.forEach(o => { apply(o, 'x', -2.85 * state.top); o.scale.y = 1 - 0.55 * state.top; });
     if (spinT > 0) { spinT -= dt; if (!actions.wheels_spin) parts.wheels.forEach(o => o.rotation.x += 12 * dt * Math.min(1, spinT)); if (spinT <= 0) actions.wheels_spin?.fadeOut(0.4); }
     const amp = Math.max(rpm * 0.006, shake * 0.012);
     holder.position.set((Math.random() - 0.5) * amp, Math.abs(Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp);
     m.head.emissiveIntensity += (lights * 2.2 - m.head.emissiveIntensity) * Math.min(1, dt * 5);
     m.tail.emissiveIntensity += (lights * 2.5 - m.tail.emissiveIntensity) * Math.min(1, dt * 5);
+    lamps.forEach(([mat, base]) => { mat.emissiveIntensity += (base * (1 + lights * 4) - mat.emissiveIntensity) * Math.min(1, dt * 5); });
+    if (jumpT >= 0) jumpT += dt;
     unitLight.intensity = rpm * 2.5 + lights * 0.5;
     field.visible = fieldLevel > 0.02;
     if (field.visible) shells.forEach((s, i) => { s.material.opacity = fieldLevel * (0.18 + 0.12 * Math.sin(t * 4 + i)); s.rotation.z = t * (0.2 + i * 0.15) * (i ? -1 : 1); });
     if (mixer) mixer.update(dt);
   }
   function spin(sec = 2.5) { spinT = sec; const a = actions.wheels_spin; if (a) { a.reset().setLoop(THREE.LoopRepeat).fadeIn(0.2).play(); } }
-  function startJump() { actions.jump?.reset().setLoop(THREE.LoopOnce).play(); shake = 1; }
+  function startJump() { // idle et jump animent tous deux c204_unit : jamais en même temps
+    if (actions.jump) { actions.idle?.stop(); const a = actions.jump.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = false; a.play(); }
+    shake = 1; jumpT = 0;
+  }
   function hide() { if (!actions.jump) holder.visible = false; }
   function show() { holder.visible = true; }
   function endJump() { // toujours appelé à la fin ou à l'arrêt : la voiture revient entière
     shake = 0; holder.visible = true; holder.scale.set(1, 1, 1); holder.position.set(0, 0, 0);
-    if (actions.jump?.isScheduled()) actions.jump.stop();
+    if (actions.jump?.isScheduled()) actions.jump.stop(); // stop() remet les valeurs d'origine (échelle 1, repos)
     if (root) { root.visible = true; root.scale.set(1, 1, 1); }
     jumpScales.forEach(([o, s]) => { o.scale.copy(s); o.visible = true; });
+    jumpT = -1;
+    if (actions.idle && !actions.idle.isRunning()) actions.idle.reset().play();
   }
   let hi = new Map();
   function highlight(id) {
     hi.forEach((mat, o) => { o.material.dispose?.(); o.material = mat; }); hi.clear(); if (!id) return;
-    pickables.forEach(o => { if (o.userData.card === id && !Array.isArray(o.material) && o.material.emissive) { hi.set(o, o.material); const c = o.material.clone(); c.emissive = new THREE.Color(0x6a5200); c.emissiveIntensity = 1; o.material = c; } });
+    pickables.forEach(o => { if (o.userData.card === id && !Array.isArray(o.material) && o.material.emissive) { hi.set(o, o.material); const c = o.material.clone(); c.emissive = new THREE.Color(0x6a5200); c.emissiveMap = null; c.emissiveIntensity = 1; o.material = c; } });
   }
   function dispose(r) {
     r.traverse(o => { if (o.isMesh) o.geometry?.dispose(); });
   }
   function stats() {
-    let tris = 0, meshes = 0; holder.traverse(o => { if (o.isMesh && o.visible) { meshes++; const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
-    return { source, meshes, tris: Math.round(tris), actions: Object.keys(actions), visible: holder.visible && (root?.visible ?? false), scale: holder.scale.x, state: { ...state }, unit: !!unit, unitGLB: !!scene.getObjectByName('c204_unit_glb'), names: Object.keys(groups) };
+    let tris = 0, meshes = 0; holder.traverse(o => { if (o.isMesh && o.visible && !o.userData.hitbox) { meshes++; const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
+    const cr = root?.getObjectByName('corvette_root') || root; const ws = cr ? cr.getWorldScale(new THREE.Vector3()).x : 1;
+    const act = Object.fromEntries(Object.entries(actions).map(([k, a]) => [k, { running: a.isRunning(), scheduled: a.isScheduled(), time: +a.time.toFixed(2), ts: a.timeScale, loop: a.loop === THREE.LoopOnce ? 'once' : 'repeat', clamp: a.clampWhenFinished }]));
+    return { source, glb: glbInfo, meshes, tris: Math.round(tris), actions: Object.keys(actions), act, visible: holder.visible && (root?.visible ?? false) && ws > 0.01, scale: holder.scale.x, rootScale: +ws.toFixed(3), state: { ...state }, unit: !!unit, unitGLB: !!scene.getObjectByName('c204_unit_glb') || !!glbInfo, names: Object.keys(groups) };
   }
   return {
     scene, update, toggle, spin, startJump, hide, show, endJump, highlight, stats,
+    sizeHotspots, showHotspots(v) { hotspots.forEach(h => h.visible = v); }, get hotspots() { return hotspots; },
+    jumpClock() { return actions.jump ? actions.jump.time : Math.max(0, jumpT); }, // horloge du saut (temps du clip, ou du code)
+    get jumpTiming() { return actions.jump ? JUMP_GLB : JUMP_CODE; },
+    get bbox() { return restBox; },
+    rot(n) { const o = root?.getObjectByName(n); return o ? o.rotation.toArray().slice(0, 3).map(v => +v.toFixed(3)) : null; },
     setLights: v => { lights = v; },
     get pickables() { return pickables; }, get groups() { return groups; }, get state() { return target; },
   };

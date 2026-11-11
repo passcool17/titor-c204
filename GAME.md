@@ -1,7 +1,7 @@
 # Machine C204 (John Titor) — page 3D interactive
 - Lien jouable : https://passcool17.github.io/titor-c204/
 - Dépôt : https://github.com/passcool17/titor-c204 (bot Arcade 3D)
-- État : v0.1, modèle provisoire fait en code (Three.js r170) ; branchement automatique de `assets/c204.glb` dès qu'il existe.
+- État : v0.6 — scène Machine (GLB c204.glb) et scène Corvette 1967 (GLB corvette.glb v2), navigation #machine / #corvette.
 - Contrôles : glisser pour tourner, pincer pour zoomer, toucher une pièce = fiche. Boutons : Démarrer (choix de date, séquence 8 étapes, compte à rebours, saut simulé, arrêt d'urgence), Éclatée, Visite (22 pièces), Champ (sinusoïde de Tipler, p.5), Dossier (histoire, manuel, IBM 5100, prédictions, identité, physique, tableau Vérifié/Non vérifié).
 - Tests : `?demo=explode|field|tour|dossier`.
 - GLB attendu : objets nommés selon /workspace/projets/titor-c204/manuel/NOMS-OBJETS.md ; actions idle, startup, spin_singularities, field_pulse, jump, explode.
@@ -83,3 +83,18 @@ Référence lue : /workspace/assets3d/corvette-1967/references/grok-share-titor-
 | Éclairage d'environnement | RoomEnvironment, three.js r170 | MIT |
 | Faits sur la Corvette 1967 (22 940 construites, dont 14 436 cabriolets, moteurs 327 et 427, L88, empattement de 98 po, 5 ouïes d'aile…) | Corvette Action Center (corvetteactioncenter.com), CorvSport (corvsport.com) | faits cités, textes réécrits |
 | Récit de Titor | messages publics de 2000-2001 (archives), via le fichier de référence ci-dessus | cité comme récit, non vérifié |
+
+## v0.6 — GLB Corvette final (11 nov. 2026)
+- **Modèle** : `assets/corvette.glb` **v2** (288 Ko, Draco + WebP), fait par la chaîne 3D du projet (Modélisation → Rig → Rendu & export) ; création originale, propriété de Pascal, sans logo ni marque. `assets/corvette.json` pointe dessus. Capote v2 : nouveaux pivots des arceaux `soft_top_bow1..3` et piste d'échelle voulue sur `soft_top_bow3` (gardée) ; le couvercle `trunk` reste fermé pendant `top_down`. 3 nouveaux nœuds `cable_c204_plug_1..3`, rattachés à la fiche Installation.
+- **Repli** : si le GLB ne se charge pas, le modèle procédural de `corvette.js` reste affiché (avertissement console, aucune erreur).
+- **Chargement** : même GLTFLoader que la Machine, avec DRACOLoader (décodeur r170 sur jsDelivr) ; WebP natif (EXT_texture_webp). 148 nœuds dans le fichier, mètres, +Y en haut, boîte 1,79 × 1,24 × 4,54 m (vérifiée au chargement).
+- **Correspondance** : racine `corvette_root` ; `door_L`, `door_R`, `hood`, `trunk`, `soft_top` (+ `soft_top_bow1..3`), `steering_wheel`, `wheel_FL/FR/RL/RR`, `c204_unit`. Fiches par préfixe aussi pour `engine_block`, `seat_*`, `dashboard`, `center_console`, `steering_column`, `bumper_*`, `cable_c204_*`, `c204_dash_controller`.
+- **Actions** (30 i/s) : `idle` (LoopRepeat, C204) ; `doors_open`, `top_down`, `hood_open` en LoopOnce + clampWhenFinished, refermés en jouant le clip à l'envers depuis la fin ; `wheels_spin` (LoopRepeat, en touchant une roue) ; `jump` (4 s). `idle` est arrêtée pendant `jump` (même objet `c204_unit`) puis relancée. La séquence du saut suit l'horloge du clip (flash à 2,15 s, disparition 2,4-3,13 s = img 72-94, fin à 4 s), même si l'appareil rame. ARRÊT D'URGENCE : `jump` arrêtée (valeurs d'origine remises), échelle 1, visible, au repos, `idle` relancée.
+- **Perf** : les ~90 pièces fixes de la C204 dans la voiture sont fusionnées par matériau au chargement (les cœurs animés restent à part) : 151 → 60 draw calls. Scène Corvette : 60-62 draw calls, 14 918 triangles, 14 textures, tas JS 17,2 Mo avec les deux scènes (12,0 Mo Machine seule). SwiftShader sur la box : ~11 i/s (non représentatif) ; 60 i/s sur S20 **non mesuré**.
+- **Bugs QA v0.5 corrigés** :
+  - A (cadrage portrait) : la distance de caméra est calculée depuis la vraie boîte de la voiture (sphère englobante dans le plus petit angle de vue, marge 10 %) au chargement, à chaque redimensionnement / rotation de l'écran et à l'arrivée du GLB. La voiture reste entière sous tous les angles de l'orbite. Le zoom sur une pièce utilise le même calcul.
+  - B (Installation) : deux repères touchables à taille fixe (46 px de haut) au-dessus de la voiture, « C204 ▸ » (ouvre la Machine) et « Installation » (ouvre la fiche) ; plus une zone invisible élargie autour des câbles et du boîtier sous le tableau de bord. Toucher la C204 reste prioritaire. Si deux repères se chevauchent, celui dont le centre est le plus près du doigt gagne. Les repères sont cachés pendant le saut.
+  - C (titre du panneau) : le titre « SAUT DEPUIS LA CORVETTE » reste jusqu'à la fermeture du panneau ; « SÉQUENCE DE DÉMARRAGE » est remis seulement au lancement de la séquence Machine.
+- **Tests** : `/workspace/games3d/titor-c204-tests/t06.js` (Playwright + Chrome, tactile, 412x915 et 915x412), en local et en ligne.
+- **Limites connues** : capote repliée = forme simplifiée (3 coques rigides) ; Modélisation pourrait livrer une version corrigée, à brancher de la même façon (remplacer `assets/corvette.glb`). Le toucher au centre de l'habitacle donne la fiche Installation (zone élargie), la carrosserie se touche ailleurs. Son et fps à vérifier sur le S20 ; Safari non testé.
+- **Prochaines étapes** : test QA de la v0.6, mesure sur S20, éventuelle capote corrigée.
