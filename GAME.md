@@ -1,7 +1,7 @@
 # Machine C204 (John Titor) — page 3D interactive
 - Lien jouable : https://passcool17.github.io/titor-c204/
 - Dépôt : https://github.com/passcool17/titor-c204 (bot Arcade 3D)
-- État : v0.10 — scène Machine (GLB c204.glb **v2**, 103 nœuds), scène Corvette 1967 (GLB corvette.glb v2) avec l'unité C204 **v2** (les 6 pièces ajoutées) à la même place, panneau Pièces, Étiquettes 20/20, Distances de sécurité.
+- État : v0.10.1 — même contenu que la v0.10, plus un lien discret « Jeu : Mission Titor » (https://passcool17.github.io/titor-c204-jeu/) dans l'en-tête, visible dans les scènes Machine et Corvette.
 - Contrôles : glisser pour tourner, pincer pour zoomer, toucher une pièce = fiche. Boutons : Démarrer (choix de date, séquence 8 étapes, compte à rebours, saut simulé, arrêt d'urgence), Éclatée, Visite (22 pièces), Champ (sinusoïde de Tipler, p.5), Dossier (histoire, manuel, IBM 5100, prédictions, identité, physique, tableau Vérifié/Non vérifié), Pièces (bon de commande des 20 pièces, données techniques, caractéristiques de l'unité), Étiquettes (numéros sur le modèle, scène Machine), Distances (repères de sécurité autour de la Machine ou de la Corvette).
 - Tests : `?demo=explode|field|tour|dossier|pieces|labels|distances`.
 - GLB attendu : objets nommés selon /workspace/projets/titor-c204/manuel/NOMS-OBJETS.md ; actions idle, startup, spin_singularities, field_pulse, jump, explode.
@@ -199,3 +199,10 @@ Cible 60–70 respectée. Les +168 triangles correspondent aux 6 pièces ajouté
 - **Tests** : `/workspace/games3d/titor-c204-tests/t10.js` (extension de t09), 412×915 et 915×412, en local puis en ligne. 0 erreur, 0 requête 404.
 - **Captures** : `/workspace/games3d/titor-c204-v010-corvette.png` (portrait 412×915), `titor-c204-v010-corvette-paysage.png` (915×412).
 - **Limites** : les 6 nouvelles pièces, une fois fusionnées, ne sont plus des nœuds nommés séparés (comme le reste de l'unité) ; fps S20 non mesuré ; Safari non testé. Si le GLB Machine ne se charge pas, l'unité v1 du `corvette.glb` est conservée.
+
+## v0.10.1 — lien vers le jeu Mission Titor (12 nov. 2026)
+Demande de Pascal (relais Chef de cabinet : « link both ways to all 3 ») : ajouter un lien discret vers le jeu 3D, sans changer le rendu, les GLB ni le jeu de la page.
+- Un seul lien « Jeu : Mission Titor » dans l'en-tête partagé (`#top`, sous le sous-titre), visible dans la scène Machine et la scène `#corvette`. Cible : https://passcool17.github.io/titor-c204-jeu/ (nouvel onglet). Aucune autre fonction ajoutée.
+- L'en-tête gagne une ligne ; le texte d'aide et le panneau de séquence sont un peu plus bas pour ne pas chevaucher. Ni les appels de dessin, ni les GLB, ni les animations ne changent.
+- **Draw calls** (412×915, hook `__c204.render`, inchangés) : Machine **112** appels / 6 014 triangles ; Corvette **60** appels / 15 086 triangles (comme en v0.10). 0 erreur console.
+- Tests : `/workspace/games3d/titor-c204-tests/t10.js` (version 0.10.1), 0 échec, 0 erreur console. Captures locales : `/workspace/games3d/titor-c204-v0101.png` (Machine), `titor-c204-v0101-corvette.png` (Corvette).

@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { PARTS, TOUR, STEPS, DOSSIER, BOM, BOM_META, BOM_NOTES, PART_TECH, UNIT_SPECS, REF_NOTES, REF_FOOTER } from './data.js?v=0.10';
+import { PARTS, TOUR, STEPS, DOSSIER, BOM, BOM_META, BOM_NOTES, PART_TECH, UNIT_SPECS, REF_NOTES, REF_FOOTER } from './data.js?v=0.10.1';
 import { CAR_PARTS, CAR_STEPS } from './data-car.js?v=0.8';
 import { createCorvette } from './corvette.js?v=0.8';
 
@@ -950,7 +950,7 @@ if (demo === 'dossier') $('#bDossier').click();
 if (demo === 'pieces') openParts();
 if (demo === 'labels') setLabels(true);
 if (demo === 'distances') setDistances(true);
-window.__c204 = { version: '0.10', overview: () => overview(), stopCam() { camAnim = null; }, unitInfo() { return car?.unitInfo?.() || null; }, setLidOpen(on) {
+window.__c204 = { version: '0.10.1', overview: () => overview(), stopCam() { camAnim = null; }, unitInfo() { return car?.unitInfo?.() || null; }, setLidOpen(on) {
   const a = actions.startup; if (!a || !mixer) return false;
   if (on) {
     a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true;

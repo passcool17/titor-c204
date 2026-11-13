@@ -10,10 +10,11 @@ button:active{transform:scale(.97)}
 #top .ttl{flex:1 1 auto;min-width:0}
 #top b{display:block;letter-spacing:.08em;font-size:clamp(13px,3.6vw,15px);color:#ffd75a;white-space:normal;overflow:visible;overflow-wrap:anywhere;line-height:1.25}
 #top .ttl span{display:block;font-size:11px;opacity:.75;white-space:normal;overflow:visible;overflow-wrap:anywhere;line-height:1.3}
+#top a.jeu-link{pointer-events:auto;display:inline-block;margin-top:2px;font-size:11px;font-weight:650;letter-spacing:.02em;color:#7fd3ff;text-decoration:underline;text-underline-offset:2px;line-height:1.3;white-space:nowrap}
 #topBtns{display:flex;align-items:center;gap:6px;flex:0 0 auto;margin-left:auto;pointer-events:auto}
 .ico{pointer-events:auto;width:44px;height:44px;padding:0;font-size:20px}
 .ico.off{opacity:.6}
-#hint{position:fixed;top:64px;left:0;right:0;text-align:center;font-size:12px;opacity:.7;pointer-events:none;transition:opacity 1s}
+#hint{position:fixed;top:80px;left:0;right:0;text-align:center;font-size:12px;opacity:.7;pointer-events:none;transition:opacity 1s}
 #bar,#barCar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:6px;padding:8px 8px calc(env(safe-area-inset-bottom) + 8px);background:linear-gradient(#05080c00,#05080cf2 35%)}
 #bar button,#barCar button{flex:1;display:flex;flex-direction:column;align-items:center;font-size:18px;padding:6px 2px}
 #bar button span,#barCar button span{font-size:11px;margin-top:2px}
@@ -32,7 +33,7 @@ button:active{transform:scale(.97)}
 #dateBox input{width:100%;font-size:18px;padding:8px;border-radius:10px;border:1px solid #2f4352;background:#05080c;color:#fff;margin-bottom:8px;color-scheme:dark;min-height:44px}
 #dateBox .primary{width:100%;padding:12px;font-weight:700}
 .small{font-size:11px;opacity:.65;margin-top:8px}
-#status{position:fixed;z-index:20;top:70px;left:8px;width:min(260px,70vw);background:#0b131bd9;border:1px solid #29c99a66;border-radius:12px;padding:10px;font:11px/1.35 monospace}
+#status{position:fixed;z-index:20;top:86px;left:8px;width:min(260px,70vw);background:#0b131bd9;border:1px solid #29c99a66;border-radius:12px;padding:10px;font:11px/1.35 monospace}
 #stTitle{color:#29c99a;font-weight:700;margin-bottom:4px}
 #stSteps{list-style:none;max-height:150px;overflow:hidden}
 #stSteps li{opacity:.45}#stSteps li.done{opacity:1;color:#bfffe6}#stSteps li.done::before{content:"✔ "}#stSteps li.cur{opacity:1;color:#ffd75a}#stSteps li.cur::before{content:"▸ "}
@@ -62,11 +63,11 @@ body.dos-open #bar,body.dos-open #barCar,body.dos-open #top,body.dos-open #distL
 /* paysage bas (téléphone couché) : panneau de séquence à gauche, fiche à droite, aucun chevauchement */
 @media (orientation:landscape) and (max-height:520px){
   #top{padding-top:calc(env(safe-area-inset-top) + 4px);padding-bottom:4px}
-  #hint{top:54px}
-  #status{top:56px;width:min(300px,38vw);max-height:calc(100vh - 56px - 70px);overflow:auto;padding:8px}
+  #hint{top:70px}
+  #status{top:72px;width:min(300px,38vw);max-height:calc(100vh - 72px - 70px);overflow:auto;padding:8px}
   #stSteps{max-height:84px;overflow:auto}
   #count{font-size:24px}
-  #sheet,#dateBox{left:auto;right:8px;width:min(440px,calc(100vw - min(300px,38vw) - 32px));top:56px;bottom:calc(env(safe-area-inset-bottom) + 70px);max-height:none}
+  #sheet,#dateBox{left:auto;right:8px;width:min(440px,calc(100vw - min(300px,38vw) - 32px));top:72px;bottom:calc(env(safe-area-inset-bottom) + 70px);max-height:none}
   #bar{padding-top:4px;padding-bottom:calc(env(safe-area-inset-bottom) + 4px)}
   #bar button,#barCar button{flex-direction:row;justify-content:center;gap:6px;min-height:44px}
   #bar button span,#barCar button span{margin-top:0}
@@ -86,8 +87,8 @@ body[data-scene="corvette"] #bLabels{display:none}
 @media (max-width:640px){
   #top .ttl{flex:1 1 100%}
   #topBtns{flex:1 1 100%;justify-content:flex-end;margin-left:0}
-  #hint{top:calc(env(safe-area-inset-top) + 108px)}
-  #status{top:calc(env(safe-area-inset-top) + 114px)}
+  #hint{top:calc(env(safe-area-inset-top) + 126px)}
+  #status{top:calc(env(safe-area-inset-top) + 132px)}
 }
 #shFrame{font-size:12px;color:#ffd75a;margin:6px 0;padding:6px 8px;background:#2a210a;border-left:3px solid #ffd75a;border-radius:8px}
 #shQty{font-size:14px;margin:4px 0 6px}
